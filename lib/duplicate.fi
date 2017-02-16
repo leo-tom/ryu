@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>duplicate</Name>
+    <NameInC>duplicate_ryu</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>1</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void duplicate_ryu(struct order *order){
+	pse_stream *writeTo[8] = {NULL};pse_stream *read = get_read_Stream(order,1);
+	int i = 0;
+	int n = 1;
+	int c;
+	pse_stream *tmp;
+	while((tmp=get_write_Stream(order,n++))!=NULL){
+		writeTo[i++] = tmp;
+	}
+	if(i==0){;/*non stream was given*/}
+	if(read==NULL){/*fprintf(stderr, "There is no stream that I can read[I am duplicate_ryu]\n");exit(1);*/return;}
+	while((c=read_pse_stream(read))!=EOF){
+		for(i=0;writeTo[i]!=NULL;i++){
+			write_pse_stream(writeTo[i],c);
+		}
+	}
+}
+</Code>
+    <Description>duplicate data that is given to all output stream that is given</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>stdlib</Familly>
+    <Includes num="0">stdio</Includes>
+    <Includes num="1">stdlib</Includes>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+</ryuLib>

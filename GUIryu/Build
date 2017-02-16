@@ -1,0 +1,5 @@
+#! /bin/sh -
+
+cp ./resources /apps/ryu/ryu/ -r
+cd /apps/ryu/ryu
+sudo /apps/ryu/ryu/Install

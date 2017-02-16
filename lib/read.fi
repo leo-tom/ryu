@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>read</Name>
+    <NameInC>read_ryu</NameInC>
+    <Version>0.2</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>#include &lt;stdio.h&gt;
+void read_ryu(struct order *order){
+        int i;
+        int c;
+        pse_stream *out,*filename;
+        char *buff;
+        out = get_write_Stream(order,1);
+        filename = get_read_Stream(order,1);
+        if(out!=NULL&amp;&amp;filename==NULL){
+            while((c=getchar())!=EOF){
+                write_pse_stream(out,c);
+            }
+            return;
+        }
+        for(i=1;i&lt;=8;i++){
+            filename = get_read_Stream(order,i);
+            out = get_write_Stream(order,i);
+            if(filename==NULL||out==NULL){
+                break;
+            }else{
+                while((buff = read_line(order,filename))!=NULL){
+                    FILE *fp = NULL;
+                    if(!strcmp(buff,"stderr")||!strcmp(buff,"standard error")){
+                        fp = stderr;
+                    }else if(!strcmp(buff,"stdout")||!strcmp(buff,"standard out")){
+                        fp = stdout;
+                    }else if((fp=fopen(buff,"r"))==NULL){
+                        /*fprintf(stderr, "Failed to open %s\n",buff);*/
+                    }else{
+                        while((c=fgetc(fp))!=EOF){
+                            write_pse_stream(out,c);
+                        }
+                        fclose(fp);
+                    }
+                }
+                pse_stream_end_write(out);
+            }
+        }
+}
+</Code>
+    <Description>Read file or standard input. You can give file name to input stream.
+If you send filename into nth input stream, This filter output to nth avaliable output stream.
+Filename can be send to by each lines, all of files will be read and it data will be written to corresponded output stream.
+If you dont sent any file name, It will read data from standard input.</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>stdlib</Familly>
+    <Includes num="0">stdio</Includes>
+    <Includes num="1">string</Includes>
+    <Includes num="2">stdlib</Includes>
+    <Includes num="3"/>
+    <Includes num="4"/>
+    <Includes num="5"/>
+    <Includes num="6"/>
+    <Includes num="7"/>
+    <Includes num="8"/>
+    <Includes num="9"/>
+    <Includes num="10"/>
+  </FilterInfo>
+</ryuLib>

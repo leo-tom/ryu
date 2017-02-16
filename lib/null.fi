@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>null</Name>
+    <NameInC>null_ryu</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void null_ryu(struct order *order){
+	/*order_done will close all streams*/
+}
+</Code>
+    <Description>Dispose all data that is given to this filter.
+Close all of given output stream as soon as program is executed.</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>stdlib</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+  </FilterInfo>
+</ryuLib>

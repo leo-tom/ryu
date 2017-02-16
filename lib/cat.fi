@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>cat</Name>
+    <NameInC>cat_ryu</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>1</AcceptableOut>
+    <Code>void cat_ryu(struct order *order){
+	pse_stream *out = get_write_Stream(order,1);
+	if(out==NULL){/*fprintf(stderr, "no stream to write to [I am cat_ryu]\n");*/return;}
+	int i,c;
+	for(i=0;i&lt;8;i++)
+		if(order-&gt;st_read[i]!=NULL)
+			while((c=read_pse_stream(order-&gt;st_read[i]))!=EOF)
+				write_pse_stream(out,c);
+}</Code>
+    <Description>Connect streams from first input stream and write to one output Stream.</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>stdlib</Familly>
+    <Includes num="0">stdio.h</Includes>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+</ryuLib>

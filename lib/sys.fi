@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>sys</Name>
+    <NameInC>Sys_ryu_Entry</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>2</AcceptableIn>
+    <AcceptableOut>1</AcceptableOut>
+    <Code>struct ryu_sys_data{
+	FILE *fp;
+	pse_stream *out;
+};
+void * Sys_ryu_readData(void *arg){
+	struct ryu_sys_data *data = (struct ryu_sys_data *)arg;
+	pse_stream *out = data-&gt;out;
+	FILE *in = data-&gt;fp;
+	int c;
+	while((c=fgetc(in))!=EOF){
+		write_pse_stream(out,c);
+	}
+	return NULL;
+}
+void Sys_ryu_Entry(struct order *order){
+	pse_stream *in = get_read_Stream(order,1);
+	pse_stream *cmdSt = get_read_Stream_back(order,1);
+	if(in==cmdSt)in = NULL;
+	if(cmdSt==NULL){
+		/*No cmd is given*/
+		return;
+	}
+	pse_stream *out = get_write_Stream(order,1);
+	FILE *input = NULL;
+	char buff[1024];
+	if(in!=NULL){
+		umask(S_IROTH | S_IWOTH);
+		sprintf(buff,"/tmp/pipefile_ryu_%d_%p",getpid(),order);
+		if(mkfifo(buff,S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP )){
+			return;
+		}
+	}
+	char cmd[2048];
+	if(in!=NULL){
+		sprintf(cmd,"%s &lt; %s",read_line(order,cmdSt),buff);
+	}else{
+		sprintf(cmd,"%s",read_line(order,cmdSt));
+	}
+	FILE *readF = NULL;
+	if((readF=popen(cmd,"r"))==NULL){
+		fprintf(stderr,"Failed to make app");
+	}
+	/*Fifo file cannot be opend if no one is reading*/
+	if(in!=NULL){
+		input = fopen(buff,"w");
+		if(input==NULL){
+			fprintf(stderr,"cant open\n");
+			return;
+		}
+	}
+	int c;
+	if(in!=NULL){
+		pthread_t thread;
+		struct ryu_sys_data *data = (struct ryu_sys_data *)ryumalloc(order,sizeof(struct ryu_sys_data));
+		data-&gt;fp = readF;
+		data-&gt;out = out;
+		if(pthread_create(&amp;thread,NULL,Sys_ryu_readData,(void *)data)){
+			fprintf(stderr,"Could not make new thread");
+		}
+		while((c=read_pse_stream(in))!=EOF){
+			fputc(c,input);
+		}
+		fclose(input);
+		pthread_join(thread,NULL);
+	}else{
+		while((c=fgetc(readF))!=EOF){
+			write_pse_stream(out,c);
+		}
+	}
+	if(readF!=NULL) pclose(readF);
+	if(in!=NULL) remove(buff);
+}
+</Code>
+    <Description>Execute external process. Give command from 8th stream. Write data into standard input from 1st stream. You can get standard output from 1st output stream.</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>System</Familly>
+    <Includes num="0">sys/types.h</Includes>
+    <Includes num="1">sys/stat.h</Includes>
+    <Includes num="2">sys/types.h</Includes>
+    <Includes num="3">unistd.h</Includes>
+    <Includes num="4">stdio.h</Includes>
+    <Includes num="5">stropts</Includes>
+    <Includes num="6"/>
+    <Includes num="7"/>
+    <Includes num="8"/>
+    <Includes num="9"/>
+    <Includes num="10"/>
+    <Includes num="11"/>
+    <Includes num="12"/>
+    <Includes num="13"/>
+    <Includes num="14"/>
+    <Includes num="15"/>
+    <Includes num="16"/>
+    <Includes num="17"/>
+    <Includes num="18"/>
+    <Includes num="19"/>
+    <Includes num="20"/>
+    <Includes num="21"/>
+    <Includes num="22"/>
+    <Includes num="23"/>
+    <Includes num="24"/>
+  </FilterInfo>
+</ryuLib>

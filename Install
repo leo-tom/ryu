@@ -1,0 +1,204 @@
+#! /bin/sh -
+
+#shell script for installing ryu
+#usage :
+#   ./Install [options]
+#   install -uninstall
+#           -version
+#           -source
+if [ `id -u` != '0' ]
+then
+    echo 'You need to become root to install ryu' 1>&2
+    exit 1
+fi
+IFS='
+';
+PATH="/user/local/bin:/bin:/usr/bin"
+export PATH
+ALLYES="NO"
+askfinish(){
+  if [ $ALLYES = "NO" ]
+  then
+    printf "Do you want to proceed installation?[y/a/n]"
+    read ANS
+  else
+    return
+  fi
+  if [ $ANS = "n" ]
+  then
+    exit 1
+  elif [ $ANS = 'a' ]
+  then
+    ALLYES='YES'
+    return
+  else
+    return
+  fi
+}
+version()
+{
+    echo "$PROGRAM version 0.1 Installer" 1>&2
+}
+
+uninstall()
+{
+    if which ryu > /dev/null 2> /dev/null
+        then
+        rm -r "$FOULDER"
+        rm "$ICON"
+        rm "$DESKTOP"
+    else
+        echo 'You have not installed ryu or already uninstalled'
+    fi
+}
+
+usage()
+{
+    echo './Install [options]'
+    echo '         -uninstall        uninstall ryu'
+    echo '         -version          show version'
+    echo '         -source [value]   set root directory'
+    echo '         -help             show this message'
+}
+
+ryuconfigure(){
+  #gcc
+  which gcc > /dev/null
+  if [ $? != 0 ]
+  then
+      echo 'It is recommended to use gcc to compile source code that ryu generate'
+      askfinish
+  fi
+  #java
+  which java > /dev/null
+  if [ $? != 0 ]
+  then
+      echo 'JVM seems not be installed to this computer'
+      echo 'Ryu requires JVM to exexute'
+      askfinish
+  fi
+  if [ "$(java -version 2>&1 | grep 1.8 | wc -l)" = '0' ]
+  then
+      echo 'Version of java does not seem right.'
+      echo 'Ryu requires Java version of 1.8 or later.'
+      askfinish
+  fi
+  if [ ! "$(pkg-config --libs gtk+-3.0)" ]
+  then
+      echo 'Gtk related filter could not be compiled without gtk version of 3.0'
+      askfinish
+  fi
+  if [ $(ls -1 /usr/share/misc | grep magic | wc -l) = '0' ]
+  then
+      echo 'Magic database does not seem installed'
+      echo 'File filter cannot be compiled without this database'
+      askfinish
+  fi
+}
+
+PROGRAM="RYU"
+RESOURCESFOLDER="/etc/ryu/resources"
+FOULDER="/etc/ryu"
+SOURCEFOLDER="."
+CSOURCEFOLDER="$SOURCEFOLDER/csources"
+execShell="$FOULDER/exec_ryu"
+DESKTOP="/usr/share/applications/ryu.desktop"
+ICON="/usr/share/icons/ryu-icon.png"
+LOGFILE="$FOULDER/log"
+
+while [ $# -gt 0 ]
+do
+    case $1 in
+        --version | -v | -version )
+        shift
+        version
+        exit 0
+        ;;
+
+        --uninstall | -uninstall | -u | ryu-sucks )
+        shift
+        uninstall
+        exit 0
+        ;;
+
+        --sources | --source | -source | -sources | -s )
+        shift
+        SOURCEFOLDER="$1"
+        shift
+        ;;
+
+        --help | -help | --usage | -usage | --h | -h )
+        shift
+        usage
+        exit 0
+        ;;
+    esac
+done
+ryuconfigure
+#Start installing
+cd "$SOURCEFOLDER"
+SOURCEFOLDER=`pwd`
+if [ ! -e "$SOURCEFOLDER/resources" ]
+then
+    echo 'This source folder is invalid' 1>&2
+fi
+if [ ! -e "$FOULDER" ]
+    then
+    mkdir "$FOULDER"
+fi
+if [ ! -e "$FOULDER/lib" ]
+    then
+    mkdir "$FOULDER/lib"
+fi
+if cp -R "$SOURCEFOLDER/resources" "$FOULDER/"
+then
+  echo 'Copied file'
+else
+  echo 'Copying file failed'
+  exit 1
+fi
+if cp "./ryu.jar" "$FOULDER/ryu.jar"
+then
+  echo 'Copied file'
+else
+  echo 'Copying file failed'
+  exit 1
+fi
+if cp -R "$SOURCEFOLDER/lib" "$FOULDER"
+then
+  echo 'Copied file'
+else
+  echo 'Copying file failed'
+  exit 1
+fi
+if echo 'This is log file' > "$LOGFILE"
+then
+  echo 'Copied file'
+else
+  echo 'Making log file failed'
+  exit 1
+fi
+chmod 777 $LOGFILE
+#let gui to identify ryu
+if cp "$SOURCEFOLDER/ryu.desktop" "$DESKTOP"
+then
+  echo 'Copied file'
+else
+  echo 'Copying file failed'
+  exit 1
+fi
+if cp "$SOURCEFOLDER/resources/iconS.png" "$ICON"
+then
+  echo 'Copied file'
+else
+  echo 'Copying file failed'
+  exit 1
+fi
+#make shell script
+echo '#! /bin/sh -' > $execShell
+echo 'java -jar /etc/ryu/ryu.jar $@' >> $execShell
+chmod 775 "$execShell"
+if [ ! -e "/bin/ryu" ]
+then
+ln -s "$execShell" /bin/ryu
+fi

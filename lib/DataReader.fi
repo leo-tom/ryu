@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>DataReader</Name>
+    <NameInC>DataReader_Entry</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>0</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void DataReader_Entry(struct order *order){
+    int i = 1;
+    struct order *Sorder = &amp;(((ryu_info *)order-&gt;info)-&gt;order);
+    for(;i&lt;=8;i++){
+        pse_stream *in = get_write_Stream(Sorder,i); /*Because you have to read from input stream*/
+        pse_stream *out = get_write_Stream(order,i);
+        if(in==NULL||out==NULL){
+            break;
+        }else{
+            int c;
+            while((c=read_pse_stream(in))!=EOF){
+                write_pse_stream(out,c);
+            }
+            pse_stream_end_read(in);
+        }
+		GC_pse_stream(out);
+    }
+}
+</Code>
+    <Description>Reads data from out side of ryu system.
+</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>System</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+  </FilterInfo>
+</ryuLib>

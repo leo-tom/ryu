@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>lsNoHidden</Name>
+    <NameInC>ls_no_hide_ryu_entry</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>1</AcceptableIn>
+    <AcceptableOut>1</AcceptableOut>
+    <Code>#include &lt;dirent.h&gt;
+void ls_no_hide_ryu_entry(struct order *order){
+    pse_stream *in = get_read_Stream(order,1);
+    pse_stream *out = get_write_Stream(order,1);
+    DIR *d;
+    struct dirent *dir;
+    char *folder;
+    if(out==NULL){
+        return;
+    }
+    if(in==NULL){
+        folder = ".";
+        d = opendir(folder);
+    }else{
+        folder = read_line(order,in);
+		if(folder==NULL)
+			return;
+        d = opendir(folder);
+    }
+    if(d){
+        while((dir=readdir(d))!=NULL){
+            if(dir-&gt;d_name[0]!='.'){
+                write_str_to_stream(out,dir-&gt;d_name);
+                write_pse_stream(out,'\n');
+            }
+        }
+		closedir(d);
+    }else{
+        return;
+    }
+}
+</Code>
+    <Description>Get path to directory from input stream.
+Write list of files to output stream one by a line.
+This filter does not write hidden files
+If no input stream is given it shows list of files that is on current directory.
+If input stream does not have correct path to directory it does nothing.</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>System</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+    <Includes num="5"/>
+    <Includes num="6"/>
+    <Includes num="7"/>
+    <Includes num="8"/>
+    <Includes num="9"/>
+  </FilterInfo>
+</ryuLib>

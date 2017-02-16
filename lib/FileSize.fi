@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>FileSize</Name>
+    <NameInC>FileSize_ryu_entry</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>#include &lt;sys/types.h&gt;
+#include &lt;sys/stat.h&gt;
+#include &lt;unistd.h&gt;
+void FileSize_ryu_entry(struct order *order){
+    pse_stream *in,*out;
+    char *buff;
+    int i;
+    struct stat fstat;
+    for(i=1;i&lt;=8;i++){
+        in = get_read_stream(order,i);
+        out = get_write_stream(order,i);
+        if(in==NULL||out==NULL){
+            return;
+        }
+        while((buff = read_line(order,in))!=NULL){
+            if(stat(buff,&amp;fstat)){
+                write_long(out,0);
+            }else{
+                write_long(out,fstat.st_size);
+            }
+        }
+    }
+}
+</Code>
+    <Description>Get name of file. Output size of file as long integer.</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>System</Familly>
+    <Includes num="0"/>
+  </FilterInfo>
+</ryuLib>

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>FileType</Name>
+    <NameInC>FileType_ryu_entry</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>1</AcceptableIn>
+    <AcceptableOut>1</AcceptableOut>
+    <Code>
+void FileType_ryu_entry(struct order *order){
+    pse_stream *in,*out;
+    char *buff;
+    int i;
+    struct stat fstat;
+    for(i=1;i&lt;=8;i++){
+        in = get_read_stream(order,i);
+        out = get_write_stream(order,i);
+        if(in==NULL||out==NULL){
+            return;
+        }
+        while((buff = read_line(order,in))!=NULL){
+            if(stat(buff,&amp;fstat)){
+                write_pse_stream(out,'\n');
+            }else{
+                mode_t val = fstat.st_mode;
+                if(S_ISREG(val)){
+                    write_str_to_stream(out,"regular file");
+                    write_pse_stream(out,'\n');
+                }else if(S_ISDIR(val)){
+                    write_str_to_stream(out,"directory");
+                    write_pse_stream(out,'\n');
+                }else if(S_ISCHR(val)){
+                    write_str_to_stream(out,"character device");
+                    write_pse_stream(out,'\n');
+                }else if(S_ISBLK(val)){
+                    write_str_to_stream(out,"block device");
+                    write_pse_stream(out,'\n');
+                }else if(S_ISFIFO(val)){
+                    write_str_to_stream(out,"fifo");
+                    write_pse_stream(out,'\n');
+                }else if(S_ISLNK(val)){
+                    write_str_to_stream(out,"symbolic link");
+                    write_pse_stream(out,'\n');
+                }else if(S_ISSOCK(val)){
+                    write_str_to_stream(out,"socket");
+                    write_pse_stream(out,'\n');
+                }else{
+                    write_str_to_stream(out,"unknown");
+                    write_pse_stream(out,'\n');
+                }
+            }
+        }
+    }
+}
+</Code>
+    <Description>Get name of file. Output type of file as string.</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>System</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+    <Includes num="5"/>
+    <Includes num="6"/>
+    <Includes num="7"/>
+    <Includes num="8"/>
+    <Includes num="9"/>
+    <Includes num="10"/>
+    <Includes num="11"/>
+  </FilterInfo>
+</ryuLib>

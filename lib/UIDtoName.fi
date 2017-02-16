@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>UIDtoName</Name>
+    <NameInC>uid_to_name_ryu_entry</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>#include &lt;sys/types.h&gt;
+#include &lt;pwd.h&gt;
+void uid_to_name_ryu_entry(struct order *order){
+    pse_stream *in,*out;
+    int i;
+    int uid;
+    struct passwd *sp;
+    for(i=1;i&lt;=8;i++){
+        in = get_read_stream(order,i);
+        out = get_write_stream(order,i);
+        if(in==NULL||out==NULL){
+            return;
+        }
+        while(Is_st_reading(in)){
+            uid = read_int(in);
+            sp = getpwuid(uid);
+            if(sp==NULL){
+                write_pse_stream(out,'\n');
+            }else{
+                write_str_to_stream(out,sp-&gt;pw_name);
+                write_pse_stream(out,'\n');
+            }
+        }
+    }
+}
+</Code>
+    <Description>Get integer representing user id. Output name of user.</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>System</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+    <Includes num="5"/>
+    <Includes num="6"/>
+    <Includes num="7"/>
+    <Includes num="8"/>
+    <Includes num="9"/>
+    <Includes num="10"/>
+    <Includes num="11"/>
+  </FilterInfo>
+</ryuLib>

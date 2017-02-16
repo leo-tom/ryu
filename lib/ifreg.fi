@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>ifreg</Name>
+    <NameInC>if_regular_expression_entry</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>2</AcceptableOut>
+    <Code>#include &lt;regex.h&gt;
+void if_regular_expression_entry(struct order *order){
+    pse_stream *regulerE = get_read_Stream_back(order,1);
+    pse_stream *trueS = get_write_Stream(order,1);
+    pse_stream *falseS = get_write_Stream(order,2);
+    if(regulerE==NULL||trueS==NULL||falseS==NULL||trueS==falseS){
+        fprintf(stderr, "Too few stream for ifreg\n");
+        return;
+    }
+    char *reg = read_line(order,regulerE);
+    regex_t regex;
+    if(regcomp(&amp;regex,reg,0)){
+        fprintf(stderr, "Failed to compile regular expression %s\n",reg );
+        return;
+    }
+    int i = 1;
+    char *buff = ryumalloc(order,4096);
+    int result;
+    if(buff==NULL){
+        fprintf(stderr, "Failed to allocate memory\n");
+        return;
+    }
+    for(;i&lt;=8;i++){
+        pse_stream *in = get_read_Stream(order,i);
+        if(in==regulerE){
+            break;
+        }
+        while(read_ln_ryu(in,buff,4096)&gt;0){
+            if(!(result=regexec(&amp;regex,buff,0,NULL,0))){
+                /*match*/
+                write_str_to_stream(trueS,buff);
+            }else if(result==REG_NOMATCH){
+                write_str_to_stream(falseS,buff);
+            }else{
+                /*Error*/
+                break;
+            }
+        }
+    }
+    regfree(&amp;regex);
+}
+</Code>
+    <Description>Get regular expression from last input stream.
+Get data from 1~7 input streams. Determine all of lines that was given to this filter with
+regular expression that was given.
+If expression is true, output data to 1st output stream. If expression is false,
+output data to 2nd output stream.</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>if</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+  </FilterInfo>
+</ryuLib>

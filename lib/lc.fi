@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>lc</Name>
+    <NameInC>lc_ryu</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>1</AcceptableIn>
+    <AcceptableOut>2</AcceptableOut>
+    <Code>void lc_ryu(struct order *order){
+    pse_stream *read = get_read_Stream(order,1);
+    pse_stream *gothrough = get_write_Stream(order,1);
+    pse_stream *writeTo = get_write_Stream_back(order,1);
+    if(writeTo==gothrough){
+    	gothrough = NULL;
+    }
+    if(writeTo==NULL||read==NULL){
+    	/*fprintf(stderr, "stream is not given [I amd wc_ryu]\n");*/
+    	return;
+    }
+    int c;
+    unsigned long counter = 1;
+	char buff[1024];
+    while((c=read_pse_stream(read))!=EOF){
+        if(c=='\n'){
+            counter++;
+        }
+    	if(gothrough!=NULL){
+    		write_pse_stream(gothrough,c);
+    	}
+    }
+    sprintf(buff,"%lu",counter);
+    write_str_to_stream(writeTo,buff);
+}</Code>
+    <Description>Count lines. Read from first input stream and output same data to first output stream.
+output result to 2nd output stream as string.</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>stdlib</Familly>
+    <Includes num="0">stdlib</Includes>
+    <Includes num="1">stdio</Includes>
+    <Includes num="2">string</Includes>
+    <Includes num="3"/>
+    <Includes num="4"/>
+    <Includes num="5"/>
+    <Includes num="6"/>
+    <Includes num="7"/>
+    <Includes num="8"/>
+  </FilterInfo>
+</ryuLib>

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Ryu
+Comment=Editor for ryu programming language
+Exec=ryu %F
+Icon=ryu-icon.png
+Categories=Development;Utilities;
+Terminal=false

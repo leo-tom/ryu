@@ -1,0 +1,2332 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>sed</Name>
+    <NameInC>ryu_built_in_sed_entry</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>1</AcceptableOut>
+    <Code>/*-
+ * Copyright (c) 1992 Diomidis Spinellis.
+ * Copyright (c) 1992, 1993
+ *	The Regents of the University of California.  All rights reserved.
+ *
+ * This code is derived from software contributed to Berkeley by
+ * Diomidis Spinellis of Imperial College, University of London.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 4. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ *	@(#)defs.h	8.1 (Berkeley) 6/6/93
+ * $FreeBSD$
+ */
+ #include &lt;sys/types.h&gt;
+ #include &lt;sys/stat.h&gt;
+ #include &lt;sys/ioctl.h&gt;
+ #include &lt;sys/uio.h&gt;
+
+ #include &lt;ctype.h&gt;
+ #include &lt;err.h&gt;
+ #include &lt;errno.h&gt;
+ #include &lt;fcntl.h&gt;
+ #include &lt;limits.h&gt;
+ #include &lt;regex.h&gt;
+ #include &lt;stdio.h&gt;
+ #include &lt;stdlib.h&gt;
+ #include &lt;string.h&gt;
+ #include &lt;unistd.h&gt;
+ #include &lt;wchar.h&gt;
+ #include &lt;wctype.h&gt;
+
+
+/*
+ * Types of address specifications
+ */
+enum e_atype {
+	AT_RE	    = 1,			/* Line that match RE */
+	AT_LINE,				/* Specific line */
+	AT_RELLINE,				/* Relative line */
+	AT_LAST,				/* Last line */
+};
+
+/*
+ * Format of an address
+ */
+struct s_addr {
+	enum e_atype type;			/* Address type */
+	union {
+		u_long l;			/* Line number */
+		const regex_t *r;		/* Regular expression */
+	} u;
+};
+
+/*
+ * Substitution command
+ */
+struct s_subst {
+	int n;					/* Occurrence to subst. */
+	int p;					/* True if p flag */
+	int icase;				/* True if I flag */
+	char *wfile;				/* NULL if no wfile */
+	int wfd;				/* Cached file descriptor */
+	const regex_t *re;			/* Regular expression */
+	unsigned int maxbref;			/* Largest backreference. */
+	u_long linenum;				/* Line number. */
+	char *new;				/* Replacement text */
+};
+
+/*
+ * Translate command.
+ */
+struct s_tr {
+	unsigned char bytetab[256];
+	struct trmulti {
+		size_t fromlen;
+		char from[MB_LEN_MAX];
+		size_t tolen;
+		char to[MB_LEN_MAX];
+	} *multis;
+	int nmultis;
+};
+
+/*
+ * An internally compiled command.
+ * Initialy, label references are stored in t, on a second pass they
+ * are updated to pointers.
+ */
+struct s_command {
+	struct s_command *next;			/* Pointer to next command */
+	struct s_addr *a1, *a2;			/* Start and end address */
+	u_long startline;			/* Start line number or zero */
+	char *t;				/* Text for : a c i r w */
+	size_t tlen;
+	union {
+		struct s_command *c;		/* Command(s) for b t { */
+		struct s_subst *s;		/* Substitute command */
+		struct s_tr *y;			/* Replace command array */
+		int fd;				/* File descriptor for w */
+	} u;
+	char code;				/* Command code */
+	u_int nonsel:1;				/* True if ! */
+};
+
+/*
+ * Types of command arguments recognised by the parser
+ */
+enum e_args {
+	EMPTY,			/* d D g G h H l n N p P q x = \0 */
+	TEXT,			/* a c i */
+	NONSEL,			/* ! */
+	GROUP,			/* { */
+	ENDGROUP,		/* } */
+	COMMENT,		/* # */
+	BRANCH,			/* b t */
+	LABEL,			/* : */
+	RFILE,			/* r */
+	WFILE,			/* w */
+	SUBST,			/* s */
+	TR			/* y */
+};
+
+/*
+ * Structure containing things to append before a line is read
+ */
+struct s_appends {
+	enum {AP_STRING, AP_FILE} type;
+	char *s;
+	size_t len;
+};
+
+enum e_spflag {
+	APPEND,					/* Append to the contents. */
+	REPLACE,				/* Replace the contents. */
+};
+
+/*
+ * Structure for a space (process, hold, otherwise).
+ */
+typedef struct {
+	char *space;		/* Current space pointer. */
+	size_t len;		/* Current length. */
+	int deleted;		/* If deleted. */
+	int append_newline;	/* If originally terminated by \n. */
+	char *back;		/* Backing memory. */
+	size_t blen;		/* Backing memory length. */
+} SPACE;
+/*-
+ * Copyright (c) 1992 Diomidis Spinellis.
+ * Copyright (c) 1992, 1993
+ *	The Regents of the University of California.  All rights reserved.
+ *
+ * This code is derived from software contributed to Berkeley by
+ * Diomidis Spinellis of Imperial College, University of London.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 4. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ *	@(#)extern.h	8.1 (Berkeley) 6/6/93
+ * $FreeBSD$
+ */
+
+/*for ryu*/
+__thread struct order *sed_glbal_order;
+
+extern __thread struct s_command *prog;
+extern __thread struct s_appends *appends;
+extern __thread regmatch_t *match;
+extern __thread size_t maxnsub;
+extern __thread u_long linenum;
+extern __thread int appendnum;
+extern __thread int aflag, eflag, nflag;
+extern __thread const char *fname, *outfname;
+extern __thread pse_stream *infile_S, *outfile_S;
+extern __thread int rflags;	/* regex flags to use */
+
+void	 cfclose(struct s_command *, const struct s_command *);
+void	 compile(void);
+void	 cspace(SPACE *, const char *, size_t, enum e_spflag);
+const char *cu_fgets(int *);
+int	 mf_fgets(SPACE *, enum e_spflag);
+int	 lastline(void);
+void	 process(void);
+void	 resetstate(void);
+char	*strregerror(int, const regex_t *);
+/*-
+ * Copyright (c) 1992 Diomidis Spinellis.
+ * Copyright (c) 1992, 1993
+ *	The Regents of the University of California.  All rights reserved.
+ *
+ * This code is derived from software contributed to Berkeley by
+ * Diomidis Spinellis of Imperial College, University of London.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 4. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
+
+#include &lt;sys/cdefs.h&gt;
+/*__FBSDID("$FreeBSD$");*/
+
+#ifndef lint
+static const char sccsid[] = "@(#)compile.c	8.1 (Berkeley) 6/6/93";
+#endif
+
+#include &lt;sys/types.h&gt;
+#include &lt;sys/stat.h&gt;
+
+#include &lt;ctype.h&gt;
+#include &lt;err.h&gt;
+#include &lt;errno.h&gt;
+#include &lt;fcntl.h&gt;
+#include &lt;limits.h&gt;
+#include &lt;regex.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+#include &lt;wchar.h&gt;
+/*
+#include "defs.h"
+#include "extern.h"
+*/
+#define LHSZ	128
+#define	LHMASK	(LHSZ - 1)
+static __thread struct labhash {
+	struct	labhash *lh_next;
+	u_int	lh_hash;
+	struct	s_command *lh_cmd;
+	int	lh_ref;
+} *labels[LHSZ];
+
+static const  char	 *compile_addr(const char *, struct s_addr *);
+static        char	 *compile_ccl(const char **, char *);
+static const  char	 *compile_delimited(const char *, char *, int);
+static const  char	 *compile_flags(const char *, struct s_subst *);
+static const  regex_t	 *compile_re(const char *, int);
+static const  char	 *compile_subst(const char *, struct s_subst *);
+static        char	 *compile_text(size_t *);
+static const  char	 *compile_tr(const char *, struct s_tr **);
+static struct s_command
+		**compile_stream(struct s_command **);
+static char	 *duptoeol(const char *, const char *, size_t *);
+static void	  enterlabel(struct s_command *);
+static struct s_command
+		 *findlabel(const char *);
+static void	  fixuplabel(struct s_command *, const struct s_command *);
+static void	  uselabel(void);
+
+/*
+ * Command specification.  This is used to drive the command parser.
+ */
+struct s_format {
+	char code;				/* Command code */
+	int naddr;				/* Number of address args */
+	enum e_args args;			/* Argument type */
+};
+
+static struct s_format cmd_fmts[] = {
+	{'{', 2, GROUP},
+	{'}', 0, ENDGROUP},
+	{'a', 1, TEXT},
+	{'b', 2, BRANCH},
+	{'c', 2, TEXT},
+	{'d', 2, EMPTY},
+	{'D', 2, EMPTY},
+	{'g', 2, EMPTY},
+	{'G', 2, EMPTY},
+	{'h', 2, EMPTY},
+	{'H', 2, EMPTY},
+	{'i', 1, TEXT},
+	{'l', 2, EMPTY},
+	{'n', 2, EMPTY},
+	{'N', 2, EMPTY},
+	{'p', 2, EMPTY},
+	{'P', 2, EMPTY},
+	{'q', 1, EMPTY},
+	{'r', 1, RFILE},
+	{'s', 2, SUBST},
+	{'t', 2, BRANCH},
+	{'w', 2, WFILE},
+	{'x', 2, EMPTY},
+	{'y', 2, TR},
+	{'!', 2, NONSEL},
+	{':', 0, LABEL},
+	{'#', 0, COMMENT},
+	{'=', 1, EMPTY},
+	{'\0', 0, COMMENT},
+};
+
+/* The compiled program. */
+__thread struct s_command *prog;
+
+/*
+ * Compile the program into prog.
+ * Initialise appends.
+ */
+void
+compile(void)
+{
+	*compile_stream(&amp;prog) = NULL;
+	fixuplabel(prog, NULL);
+	uselabel();
+	if (appendnum == 0)
+		appends = NULL;
+	else if ((appends = malloc(sizeof(struct s_appends) * appendnum)) ==
+	    NULL)
+		err(1, "malloc");
+	if ((match = malloc((maxnsub + 1) * sizeof(regmatch_t))) == NULL)
+		err(1, "malloc");
+}
+
+#define	EATSPACE() do {						\
+	while (*p &amp;&amp; isspace((unsigned char)*p))		\
+		p++;						\
+	} while (0)
+
+#define	EATSPACEN() do {					\
+	while (*p &amp;&amp; *p != '\n' &amp;&amp; isspace((unsigned char)*p))  \
+		p++;						\
+	} while (0)
+
+static struct s_command **
+compile_stream(struct s_command **link)
+{
+	const char *p;
+	struct s_command *cmd, *cmd2, *stack;
+	struct s_format *fp;
+	char re[_POSIX2_LINE_MAX + 1];
+	int naddr;				/* Number of addresses */
+
+	stack = NULL;
+	for (;;) {
+		if ((p = cu_fgets(NULL)) == NULL) {
+			if (stack != NULL)
+				errx(1, "%lu: %s: unexpected EOF (pending }'s)",
+							linenum, fname);
+			return (link);
+		}
+
+semicolon:	EATSPACEN();
+		switch (*p) {
+		case '#': case '\0': case '\n':
+			continue;	/* to next command-unit */
+		case ';':
+			p++;
+			goto semicolon;
+		}
+
+		if ((*link = cmd = malloc(sizeof(struct s_command))) == NULL)
+			err(1, "malloc");
+		link = &amp;cmd-&gt;next;
+		cmd-&gt;startline = cmd-&gt;nonsel = 0;
+		/* First parse the addresses */
+		naddr = 0;
+
+/* Valid characters to start an address */
+#define	addrchar(c)	(strchr("0123456789/\\$", (c)))
+		if (addrchar(*p)) {
+			naddr++;
+			if ((cmd-&gt;a1 = malloc(sizeof(struct s_addr))) == NULL)
+				err(1, "malloc");
+			p = compile_addr(p, cmd-&gt;a1);
+			EATSPACE();				/* EXTENSION */
+			if (*p == ',') {
+				p++;
+				EATSPACE();			/* EXTENSION */
+				naddr++;
+				if ((cmd-&gt;a2 = malloc(sizeof(struct s_addr)))
+				    == NULL)
+					err(1, "malloc");
+				p = compile_addr(p, cmd-&gt;a2);
+				EATSPACE();
+			} else
+				cmd-&gt;a2 = NULL;
+		} else
+			cmd-&gt;a1 = cmd-&gt;a2 = NULL;
+
+nonsel:		/* Now parse the command */
+		if (*p == '\0' || *p == '\n')
+			errx(1, "%lu: %s: command expected", linenum, fname);
+		cmd-&gt;code = *p;
+		for (fp = cmd_fmts; fp-&gt;code; fp++)
+			if (fp-&gt;code == *p)
+				break;
+		if (!fp-&gt;code)
+			errx(1, "%lu: %s: invalid command code %c (%s)", linenum, fname, *p, p);
+		if (naddr &gt; fp-&gt;naddr)
+			errx(1,
+				"%lu: %s: command %c expects up to %d address(es), found %d",
+				linenum, fname, *p, fp-&gt;naddr, naddr);
+		switch (fp-&gt;args) {
+		case NONSEL:			/* ! */
+			p++;
+			EATSPACE();
+			cmd-&gt;nonsel = 1;
+			goto nonsel;
+		case GROUP:			/* { */
+			p++;
+			EATSPACEN();
+			cmd-&gt;next = stack;
+			stack = cmd;
+			link = &amp;cmd-&gt;u.c;
+			if (*p != '\0' &amp;&amp; *p != '\n')
+				goto semicolon;
+			break;
+		case ENDGROUP:
+			/*
+			 * Short-circuit command processing, since end of
+			 * group is really just a noop.
+			 */
+			cmd-&gt;nonsel = 1;
+			if (stack == NULL)
+				errx(1, "%lu: %s: unexpected }", linenum, fname);
+			cmd2 = stack;
+			stack = cmd2-&gt;next;
+			cmd2-&gt;next = cmd;
+			/*FALLTHROUGH*/
+		case EMPTY:		/* d D g G h H l n N p P q x = \0 */
+			p++;
+			EATSPACEN();
+			if (*p == ';') {
+				p++;
+				link = &amp;cmd-&gt;next;
+				goto semicolon;
+			}
+			if (*p != '\0' &amp;&amp; *p != '\n')
+				errx(1, "%lu: %s: extra characters at the end of %c command",
+						linenum, fname, cmd-&gt;code);
+			break;
+		case TEXT:			/* a c i */
+			p++;
+			EATSPACE();
+			if (*p != '\\')
+				errx(1,
+"%lu: %s: command %c expects \\ followed by text", linenum, fname, cmd-&gt;code);
+			p++;
+			EATSPACEN();
+			if (*p != '\n')
+				errx(1,
+				"%lu: %s: extra characters (%c) after \\ at the end of %c command",
+				linenum, fname, *p, cmd-&gt;code);
+			cmd-&gt;t = compile_text(&amp;cmd-&gt;tlen);
+			break;
+		case COMMENT:			/* \0 # */
+			break;
+		case WFILE:			/* w */
+			p++;
+			EATSPACE();
+			if (*p == '\0')
+				errx(1, "%lu: %s: filename expected", linenum, fname);
+			cmd-&gt;t = duptoeol(p, "w command", &amp;cmd-&gt;tlen);
+			if (aflag)
+				cmd-&gt;u.fd = -1;
+			else if ((cmd-&gt;u.fd = open(cmd-&gt;t,
+			    O_WRONLY|O_APPEND|O_CREAT|O_TRUNC,
+			    DEFFILEMODE)) == -1)
+				err(1, "%s", p);
+			break;
+		case RFILE:			/* r */
+			p++;
+			EATSPACE();
+			if (*p == '\0')
+				errx(1, "%lu: %s: filename expected", linenum, fname);
+			else
+				cmd-&gt;t = duptoeol(p, "read command", &amp;cmd-&gt;tlen);
+			break;
+		case BRANCH:			/* b t */
+			p++;
+			EATSPACEN();
+			if (*p == '\0' || *p == '\n')
+				cmd-&gt;t = NULL;
+			else
+				cmd-&gt;t = duptoeol(p, "branch", &amp;cmd-&gt;tlen);
+			break;
+		case LABEL:			/* : */
+			p++;
+			EATSPACE();
+			cmd-&gt;t = duptoeol(p, "label", &amp;cmd-&gt;tlen);
+			if (cmd-&gt;t[0] == '\0')
+				errx(1, "%lu: %s: empty label", linenum, fname);
+			enterlabel(cmd);
+			break;
+		case SUBST:			/* s */
+			p++;
+			if (*p == '\0' || *p == '\\' || *p == '\n')
+				errx(1,
+"%lu: %s: substitute pattern can not be delimited by newline or backslash",
+					linenum, fname);
+			if ((cmd-&gt;u.s = calloc(1, sizeof(struct s_subst))) == NULL)
+				err(1, "malloc");
+			p = compile_delimited(p, re, 0);
+			if (p == NULL)
+				errx(1,
+				"%lu: %s: unterminated substitute pattern", linenum, fname);
+
+			--p;
+			p = compile_subst(p, cmd-&gt;u.s);
+			p = compile_flags(p, cmd-&gt;u.s);
+
+			if (*re != '\0')
+				cmd-&gt;u.s-&gt;re = compile_re(re, cmd-&gt;u.s-&gt;icase);
+
+			EATSPACE();
+
+			if (*p == ';') {
+				p++;
+				link = &amp;cmd-&gt;next;
+				goto semicolon;
+			}
+			break;
+		case TR:			/* y */
+			p++;
+			p = compile_tr(p, &amp;cmd-&gt;u.y);
+			EATSPACE();
+			if (*p == ';') {
+				p++;
+				link = &amp;cmd-&gt;next;
+				goto semicolon;
+			}
+			if (*p)
+				errx(1,
+"%lu: %s: extra text at the end of a transform command", linenum, fname);
+			break;
+		}
+	}
+}
+
+/*
+ * Get a delimited string.  P points to the delimiter of the string; d points
+ * to a buffer area.  Newline and delimiter escapes are processed; other
+ * escapes are ignored.
+ *
+ * Returns a pointer to the first character after the final delimiter or NULL
+ * in the case of a non-terminated string.  The character array d is filled
+ * with the processed string.
+ */
+static const char *
+compile_delimited(const char *p, char *d, int is_tr)
+{
+	char c;
+
+	c = *p++;
+	if (c == '\0')
+		return (NULL);
+	else if (c == '\\')
+		errx(1, "%lu: %s: \\ can not be used as a string delimiter",
+				linenum, fname);
+	else if (c == '\n')
+		errx(1, "%lu: %s: newline can not be used as a string delimiter",
+				linenum, fname);
+	while (*p) {
+		if (*p == '[' &amp;&amp; *p != c) {
+			if ((d = compile_ccl(&amp;p, d)) == NULL)
+				errx(1, "%lu: %s: unbalanced brackets ([])", linenum, fname);
+			continue;
+		} else if (*p == '\\' &amp;&amp; p[1] == '[') {
+			*d++ = *p++;
+		} else if (*p == '\\' &amp;&amp; p[1] == c)
+			p++;
+		else if (*p == '\\' &amp;&amp; p[1] == 'n') {
+			*d++ = '\n';
+			p += 2;
+			continue;
+		} else if (*p == '\\' &amp;&amp; p[1] == '\\') {
+			if (is_tr)
+				p++;
+			else
+				*d++ = *p++;
+		} else if (*p == c) {
+			*d = '\0';
+			return (p + 1);
+		}
+		*d++ = *p++;
+	}
+	return (NULL);
+}
+
+
+/* compile_ccl: expand a POSIX character class */
+static char *
+compile_ccl(const char **sp, char *t)
+{
+	int c, d;
+	const char *s = *sp;
+
+	*t++ = *s++;
+	if (*s == '^')
+		*t++ = *s++;
+	if (*s == ']')
+		*t++ = *s++;
+	for (; *s &amp;&amp; (*t = *s) != ']'; s++, t++)
+		if (*s == '[' &amp;&amp; ((d = *(s+1)) == '.' || d == ':' || d == '=')) {
+			*++t = *++s, t++, s++;
+			for (c = *s; (*t = *s) != ']' || c != d; s++, t++)
+				if ((c = *s) == '\0')
+					return NULL;
+		}
+	return (*s == ']') ? *sp = ++s, ++t : NULL;
+}
+
+/*
+ * Compiles the regular expression in RE and returns a pointer to the compiled
+ * regular expression.
+ * Cflags are passed to regcomp.
+ */
+static const regex_t *
+compile_re(const char *re, int case_insensitive)
+{
+	regex_t *rep;
+	int eval, flags;
+
+
+	flags = rflags;
+	if (case_insensitive)
+		flags |= REG_ICASE;
+	if ((rep = malloc(sizeof(regex_t))) == NULL)
+		err(1, "malloc");
+	if ((eval = regcomp(rep, re, flags)) != 0)
+		errx(1, "%lu: %s: RE error: %s",
+				linenum, fname, strregerror(eval, rep));
+	if (maxnsub &lt; rep-&gt;re_nsub)
+		maxnsub = rep-&gt;re_nsub;
+	return (rep);
+}
+
+/*
+ * Compile the substitution string of a regular expression and set res to
+ * point to a saved copy of it.  Nsub is the number of parenthesized regular
+ * expressions.
+ */
+static const char *
+compile_subst(const char *p, struct s_subst *s)
+{
+	int asize, size;
+	u_char ref;
+	char c, *text, *op, *sp;
+	int more = 0, sawesc = 0;
+
+	c = *p++;			/* Terminator character */
+	if (c == '\0')
+		return (NULL);
+
+	s-&gt;maxbref = 0;
+	s-&gt;linenum = linenum;
+	asize = 2 * _POSIX2_LINE_MAX + 1;
+	if ((text = malloc(asize)) == NULL)
+		err(1, "malloc");
+	size = 0;
+	do {
+		op = sp = text + size;
+		for (; *p != '\0' &amp;&amp; *p != '\n'; p++) {
+			if (*p == '\\' || sawesc) {
+				/*
+				 * If this is a continuation from the last
+				 * buffer, we won't have a character to
+				 * skip over.
+				 */
+				if (sawesc)
+					sawesc = 0;
+				else
+					p++;
+
+				if (*p == '\0') {
+					/*
+					 * This escaped character is continued
+					 * in the next part of the line.  Note
+					 * this fact, then cause the loop to
+					 * exit w/ normal EOL case and reenter
+					 * above with the new buffer.
+					 */
+					sawesc = 1;
+					p--;
+					break;
+				} else if (*p == '\n') {
+					*sp++ = '\n';
+					break;
+				} else if (strchr("123456789", *p) != NULL) {
+					*sp++ = '\\';
+					ref = *p - '0';
+					if (s-&gt;re != NULL &amp;&amp;
+					    ref &gt; s-&gt;re-&gt;re_nsub)
+						errx(1, "%lu: %s: \\%c not defined in the RE",
+								linenum, fname, *p);
+					if (s-&gt;maxbref &lt; ref)
+						s-&gt;maxbref = ref;
+				} else if (*p == '&amp;' || *p == '\\')
+					*sp++ = '\\';
+			} else if (*p == c) {
+				if (*++p == '\0' &amp;&amp; more) {
+					const char *nextp;
+
+					nextp = cu_fgets(&amp;more);
+					if (nextp != NULL)
+						p = nextp;
+				}
+				*sp++ = '\0';
+				size += sp - op;
+				if ((s-&gt;new = realloc(text, size)) == NULL)
+					err(1, "realloc");
+				return (p);
+			} else if (*p == '\n') {
+				errx(1,
+"%lu: %s: unescaped newline inside substitute pattern", linenum, fname);
+				/* NOTREACHED */
+			}
+			*sp++ = *p;
+		}
+		size += sp - op;
+		if (asize - size &lt; _POSIX2_LINE_MAX + 1) {
+			asize *= 2;
+			if ((text = realloc(text, asize)) == NULL)
+				err(1, "realloc");
+		}
+	} while ((p = cu_fgets(&amp;more)));
+	errx(1, "%lu: %s: unterminated substitute in regular expression",
+			linenum, fname);
+	/* NOTREACHED */
+}
+
+/*
+ * Compile the flags of the s command
+ */
+static const char *
+compile_flags(const char *p, struct s_subst *s)
+{
+	int gn;			/* True if we have seen g or n */
+	unsigned long nval;
+	char *q;
+
+	s-&gt;n = 1;				/* Default */
+	s-&gt;p = 0;
+	s-&gt;wfile = NULL;
+	s-&gt;wfd = -1;
+	s-&gt;icase = 0;
+	for (gn = 0;;) {
+		EATSPACEN();			/* EXTENSION */
+		switch (*p) {
+		case 'g':
+			if (gn)
+				errx(1,
+"%lu: %s: more than one number or 'g' in substitute flags", linenum, fname);
+			gn = 1;
+			s-&gt;n = 0;
+			break;
+		case '\0':
+		case '\n':
+		case ';':
+			return (p);
+		case 'p':
+			s-&gt;p = 1;
+			break;
+		case 'i':
+		case 'I':
+			s-&gt;icase = 1;
+			break;
+		case '1': case '2': case '3':
+		case '4': case '5': case '6':
+		case '7': case '8': case '9':
+			if (gn)
+				errx(1,
+"%lu: %s: more than one number or 'g' in substitute flags", linenum, fname);
+			gn = 1;
+			errno = 0;
+			nval = strtol(p, &amp;q, 10);
+			if (errno == ERANGE || nval &gt; INT_MAX)
+				errx(1,
+"%lu: %s: overflow in the 'N' substitute flag", linenum, fname);
+			s-&gt;n = nval;
+			p = q;
+			continue;
+		case 'w':
+			p++;
+#ifdef HISTORIC_PRACTICE
+			if (*p != ' ') {
+				warnx("%lu: %s: space missing before w wfile", linenum, fname);
+				return (p);
+			}
+#endif
+			EATSPACE();
+			s-&gt;wfile = duptoeol(p, "w flag", NULL);
+			if (!aflag &amp;&amp; (s-&gt;wfd = open(s-&gt;wfile,
+			    O_WRONLY|O_APPEND|O_CREAT|O_TRUNC,
+			    DEFFILEMODE)) == -1)
+				err(1, "%s", s-&gt;wfile);
+			return (p);
+		default:
+			errx(1, "%lu: %s: bad flag in substitute command: '%c' (%.10s)",
+					linenum, fname, *p, p);
+			break;
+		}
+		p++;
+	}
+}
+
+/*
+ * Compile a translation set of strings into a lookup table.
+ */
+static const char *
+compile_tr(const char *p, struct s_tr **py)
+{
+	struct s_tr *y;
+	int i;
+	const char *op, *np;
+	char old[_POSIX2_LINE_MAX + 1];
+	char new[_POSIX2_LINE_MAX + 1];
+	size_t oclen, oldlen, nclen, newlen;
+	mbstate_t mbs1, mbs2;
+
+	if ((*py = y = malloc(sizeof(*y))) == NULL)
+		err(1, "malloc");
+	y-&gt;multis = NULL;
+	y-&gt;nmultis = 0;
+
+	if (*p == '\0' || *p == '\\')
+		errx(1,
+	"%lu: %s: transform pattern can not be delimited by newline or backslash",
+			linenum, fname);
+	p = compile_delimited(p, old, 1);
+	if (p == NULL)
+		errx(1, "%lu: %s: unterminated transform source string",
+				linenum, fname);
+	p = compile_delimited(p - 1, new, 1);
+	if (p == NULL)
+		errx(1, "%lu: %s: unterminated transform target string",
+				linenum, fname);
+	EATSPACE();
+	op = old;
+	oldlen = mbsrtowcs(NULL, &amp;op, 0, NULL);
+	if (oldlen == (size_t)-1)
+		err(1, "mbsrtowcs");
+	np = new;
+	newlen = mbsrtowcs(NULL, &amp;np, 0, NULL);
+	if (newlen == (size_t)-1)
+		err(1, "mbsrtowcs");
+	if (newlen != oldlen)
+		errx(1, "%lu: %s: transform strings are not the same length",
+				linenum, fname);
+	if (MB_CUR_MAX == 1) {
+		/*
+		 * The single-byte encoding case is easy: generate a
+		 * lookup table.
+		 */
+		for (i = 0; i &lt;= UCHAR_MAX; i++)
+			y-&gt;bytetab[i] = (char)i;
+		for (; *op; op++, np++)
+			y-&gt;bytetab[(u_char)*op] = *np;
+	} else {
+		/*
+		 * Multi-byte encoding case: generate a lookup table as
+		 * above, but only for single-byte characters. The first
+		 * bytes of multi-byte characters have their lookup table
+		 * entries set to 0, which causes do_tr() to search through
+		 * an auxiliary vector of multi-byte mappings.
+		 */
+		memset(&amp;mbs1, 0, sizeof(mbs1));
+		memset(&amp;mbs2, 0, sizeof(mbs2));
+		for (i = 0; i &lt;= UCHAR_MAX; i++)
+			y-&gt;bytetab[i] = (btowc(i) != WEOF) ? i : 0;
+		while (*op != '\0') {
+			oclen = mbrlen(op, MB_LEN_MAX, &amp;mbs1);
+			if (oclen == (size_t)-1 || oclen == (size_t)-2){
+				/*bad*/
+				/*errc(1, EILSEQ, NULL);*/
+			}
+			nclen = mbrlen(np, MB_LEN_MAX, &amp;mbs2);
+			if (nclen == (size_t)-1 || nclen == (size_t)-2){
+				/*bad*/
+				/*errc(1, EILSEQ, NULL);*/
+			}
+			if (oclen == 1 &amp;&amp; nclen == 1)
+				y-&gt;bytetab[(u_char)*op] = *np;
+			else {
+				y-&gt;bytetab[(u_char)*op] = 0;
+				y-&gt;multis = realloc(y-&gt;multis,
+				    (y-&gt;nmultis + 1) * sizeof(*y-&gt;multis));
+				if (y-&gt;multis == NULL)
+					err(1, "realloc");
+				i = y-&gt;nmultis++;
+				y-&gt;multis[i].fromlen = oclen;
+				memcpy(y-&gt;multis[i].from, op, oclen);
+				y-&gt;multis[i].tolen = nclen;
+				memcpy(y-&gt;multis[i].to, np, nclen);
+			}
+			op += oclen;
+			np += nclen;
+		}
+	}
+	return (p);
+}
+
+/*
+ * Compile the text following an a, c, or i command.
+ */
+static char *
+compile_text(size_t *ptlen)
+{
+	int asize, esc_nl, size;
+	char *text, *s;
+	const char *p, *op;
+
+	asize = 2 * _POSIX2_LINE_MAX + 1;
+	if ((text = malloc(asize)) == NULL)
+		err(1, "malloc");
+	size = 0;
+	while ((p = cu_fgets(NULL))) {
+		op = s = text + size;
+		for (esc_nl = 0; *p != '\0'; p++) {
+			if (*p == '\\' &amp;&amp; p[1] != '\0' &amp;&amp; *++p == '\n')
+				esc_nl = 1;
+			*s++ = *p;
+			if (*p == '\n')
+				break;
+		}
+		size += s - op;
+		if (!esc_nl) {
+			*s = '\0';
+			break;
+		}
+		if (asize - size &lt; _POSIX2_LINE_MAX + 1) {
+			asize *= 2;
+			if ((text = realloc(text, asize)) == NULL)
+				err(1, "realloc");
+		}
+	}
+	text[size] = '\0';
+	if ((text = realloc(text, size + 1)) == NULL)
+		err(1, "realloc");
+	*ptlen = size;
+	return (text);
+}
+
+/*
+ * Get an address and return a pointer to the first character after
+ * it.  Fill the structure pointed to according to the address.
+ */
+static const char *
+compile_addr(const char *p, struct s_addr *a)
+{
+	char *end, re[_POSIX2_LINE_MAX + 1];
+	int icase;
+
+	icase = 0;
+
+	a-&gt;type = 0;
+	switch (*p) {
+	case '\\':				/* Context address */
+		++p;
+		/* FALLTHROUGH */
+	case '/':				/* Context address */
+		p = compile_delimited(p, re, 0);
+		if (p == NULL)
+			errx(1, "%lu: %s: unterminated regular expression", linenum, fname);
+		/* Check for case insensitive regexp flag */
+		if (*p == 'I') {
+			icase = 1;
+			p++;
+		}
+		if (*re == '\0')
+			a-&gt;u.r = NULL;
+		else
+			a-&gt;u.r = compile_re(re, icase);
+		a-&gt;type = AT_RE;
+		return (p);
+
+	case '$':				/* Last line */
+		a-&gt;type = AT_LAST;
+		return (p + 1);
+
+	case '+':				/* Relative line number */
+		a-&gt;type = AT_RELLINE;
+		p++;
+		/* FALLTHROUGH */
+						/* Line number */
+	case '0': case '1': case '2': case '3': case '4':
+	case '5': case '6': case '7': case '8': case '9':
+		if (a-&gt;type == 0)
+			a-&gt;type = AT_LINE;
+		a-&gt;u.l = strtol(p, &amp;end, 10);
+		return (end);
+	default:
+		errx(1, "%lu: %s: expected context address", linenum, fname);
+		return (NULL);
+	}
+}
+
+/*
+ * duptoeol --
+ *	Return a copy of all the characters up to \n or \0.
+ */
+static char *
+duptoeol(const char *s, const char *ctype, size_t *ptlen)
+{
+	size_t len;
+	int ws;
+	char *p;
+	const char *start;
+
+	ws = 0;
+	for (start = s; *s != '\0' &amp;&amp; *s != '\n'; ++s)
+		ws = isspace((unsigned char)*s);
+	if (ws)
+		warnx("%lu: %s: whitespace after %s", linenum, fname, ctype);
+	len = s - start;
+	if ((p = malloc(len + 1)) == NULL)
+		err(1, "malloc");
+	memmove(p, start, len);
+	p[len] = '\0';
+	if (ptlen != NULL)
+		*ptlen = len;
+	return p;
+}
+
+/*
+ * Convert goto label names to addresses, and count a and r commands, in
+ * the given subset of the script.  Free the memory used by labels in b
+ * and t commands (but not by :).
+ *
+ * TODO: Remove } nodes
+ */
+static void
+fixuplabel(struct s_command *cp, const struct s_command *end)
+{
+
+	for (; cp != end; cp = cp-&gt;next)
+		switch (cp-&gt;code) {
+		case 'a':
+		case 'r':
+			appendnum++;
+			break;
+		case 'b':
+		case 't':
+			/* Resolve branch target. */
+			if (cp-&gt;t == NULL) {
+				cp-&gt;u.c = NULL;
+				break;
+			}
+			if ((cp-&gt;u.c = findlabel(cp-&gt;t)) == NULL)
+				errx(1, "%lu: %s: %c: undefined label '%s'", linenum, fname, cp-&gt;code, cp-&gt;t);
+			free(cp-&gt;t);
+			break;
+		case '{':
+			/* Do interior commands. */
+			fixuplabel(cp-&gt;u.c, cp-&gt;next);
+			break;
+		}
+}
+
+/*
+ * Associate the given command label for later lookup.
+ */
+static void
+enterlabel(struct s_command *cp)
+{
+	struct labhash **lhp, *lh;
+	u_char *p;
+	u_int h, c;
+
+	for (h = 0, p = (u_char *)cp-&gt;t; (c = *p) != 0; p++)
+		h = (h &lt;&lt; 5) + h + c;
+	lhp = &amp;labels[h &amp; LHMASK];
+	for (lh = *lhp; lh != NULL; lh = lh-&gt;lh_next)
+		if (lh-&gt;lh_hash == h &amp;&amp; strcmp(cp-&gt;t, lh-&gt;lh_cmd-&gt;t) == 0)
+			errx(1, "%lu: %s: duplicate label '%s'", linenum, fname, cp-&gt;t);
+	if ((lh = malloc(sizeof *lh)) == NULL)
+		err(1, "malloc");
+	lh-&gt;lh_next = *lhp;
+	lh-&gt;lh_hash = h;
+	lh-&gt;lh_cmd = cp;
+	lh-&gt;lh_ref = 0;
+	*lhp = lh;
+}
+
+/*
+ * Find the label contained in the command l in the command linked
+ * list cp.  L is excluded from the search.  Return NULL if not found.
+ */
+static struct s_command *
+findlabel(const char *name)
+{
+	struct labhash *lh;
+	const u_char *p;
+	u_int h, c;
+
+	for (h = 0, p = (const u_char *)name; (c = *p) != 0; p++)
+		h = (h &lt;&lt; 5) + h + c;
+	for (lh = labels[h &amp; LHMASK]; lh != NULL; lh = lh-&gt;lh_next) {
+		if (lh-&gt;lh_hash == h &amp;&amp; strcmp(name, lh-&gt;lh_cmd-&gt;t) == 0) {
+			lh-&gt;lh_ref = 1;
+			return (lh-&gt;lh_cmd);
+		}
+	}
+	return (NULL);
+}
+
+/*
+ * Warn about any unused labels.  As a side effect, release the label hash
+ * table space.
+ */
+static void
+uselabel(void)
+{
+	struct labhash *lh, *next;
+	int i;
+
+	for (i = 0; i &lt; LHSZ; i++) {
+		for (lh = labels[i]; lh != NULL; lh = next) {
+			next = lh-&gt;lh_next;
+			if (!lh-&gt;lh_ref)
+				warnx("%lu: %s: unused label '%s'",
+				    linenum, fname, lh-&gt;lh_cmd-&gt;t);
+			free(lh);
+		}
+	}
+}
+/*-
+ * Copyright (c) 1992 Diomidis Spinellis.
+ * Copyright (c) 1992, 1993
+ *	The Regents of the University of California.  All rights reserved.
+ *
+ * This code is derived from software contributed to Berkeley by
+ * Diomidis Spinellis of Imperial College, University of London.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 4. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
+
+#include &lt;sys/cdefs.h&gt;
+/*__FBSDID("$FreeBSD$");*/
+
+#ifndef lint
+#endif
+
+#include &lt;sys/types.h&gt;
+
+#include &lt;err.h&gt;
+#include &lt;limits.h&gt;
+#include &lt;regex.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+/*
+#include "defs.h"
+#include "extern.h"
+*/
+/*
+ * Return a string for a regular expression error passed.  This is overkill,
+ * because of the silly semantics of regerror (we can never know the size of
+ * the buffer).
+ */
+char *
+strregerror(int errcode, const regex_t *preg)
+{
+	static char *oe;
+	size_t s;
+
+	s = regerror(errcode, preg, NULL, 0);
+	if ((oe = realloc(oe, s)) == NULL)
+		err(1, "realloc");
+	(void)regerror(errcode, preg, oe, s);
+	return (oe);
+}
+/*-
+ * Copyright (c) 1992 Diomidis Spinellis.
+ * Copyright (c) 1992, 1993, 1994
+ *	The Regents of the University of California.  All rights reserved.
+ *
+ * This code is derived from software contributed to Berkeley by
+ * Diomidis Spinellis of Imperial College, University of London.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 4. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
+
+#include &lt;sys/cdefs.h&gt;
+/*__FBSDID("$FreeBSD$");*/
+
+#include &lt;sys/types.h&gt;
+#include &lt;sys/stat.h&gt;
+#include &lt;sys/ioctl.h&gt;
+#include &lt;sys/uio.h&gt;
+
+#include &lt;ctype.h&gt;
+#include &lt;err.h&gt;
+#include &lt;errno.h&gt;
+#include &lt;fcntl.h&gt;
+#include &lt;limits.h&gt;
+#include &lt;regex.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;wchar.h&gt;
+#include &lt;wctype.h&gt;
+/*
+#include "defs.h"
+#include "extern.h"
+*/
+static __thread SPACE HS, PS, SS, YS;
+#define	pd		PS.deleted
+#define	ps		PS.space
+#define	psl		PS.len
+#define	psanl		PS.append_newline
+#define	hs		HS.space
+#define	hsl		HS.len
+
+static inline int	applies(struct s_command *);
+static void		do_tr(const struct s_tr *);
+static void		flush_appends(void);
+static void		lputs(const char *, size_t);
+static int		regexec_e(const regex_t *, const char *, int, int,
+			    size_t, size_t);
+static void		regsub(SPACE *, const char *, const char *);
+static int		substitute(const struct s_command *);
+
+__thread struct s_appends *appends;	/* Array of pointers to strings to append. */
+static __thread int appendx;		/* Index into appends array. */
+__thread int appendnum;			/* Size of appends array. */
+
+static __thread int lastaddr;		/* Set by applies if last address of a range. */
+static __thread int sdone;		/* If any substitutes since last line input. */
+				/* Iov structure for 'w' commands. */
+static __thread const regex_t *defpreg;
+__thread size_t maxnsub;
+__thread regmatch_t *match;
+
+#define OUT() do {							\
+	write_str_to_stream(outfile_S,ps);/*fwrite(ps, 1, psl, outfile_S);*/				\
+	if (psanl) write_pse_stream(outfile_S,'\n');/*fputc('\n', outfile_S);*/				\
+} while (0)
+
+void
+process(void)
+{
+	struct s_command *cp;
+	SPACE tspace;
+	size_t oldpsl;
+	char *p;
+	int oldpsanl;
+	char buff[1024];
+
+	p = NULL;
+	oldpsanl = oldpsl = 0;
+
+	for (linenum = 0; mf_fgets(&amp;PS, REPLACE);) {
+		pd = 0;
+top:
+		cp = prog;
+redirect:
+		while (cp != NULL) {
+			if (!applies(cp)) {
+				cp = cp-&gt;next;
+				continue;
+			}
+			switch (cp-&gt;code) {
+			case '{':
+				cp = cp-&gt;u.c;
+				goto redirect;
+			case 'a':
+				if (appendx &gt;= appendnum)
+					if ((appends = realloc(appends,
+					    sizeof(struct s_appends) *
+					    (appendnum *= 2))) == NULL)
+						err(1, "realloc");
+				appends[appendx].type = AP_STRING;
+				appends[appendx].s = cp-&gt;t;
+				appends[appendx].len = strlen(cp-&gt;t);
+				appendx++;
+				break;
+			case 'b':
+				cp = cp-&gt;u.c;
+				goto redirect;
+			case 'c':
+				pd = 1;
+				psl = 0;
+				if (cp-&gt;a2 == NULL || lastaddr || lastline()){
+					sprintf(buff,"%s", cp-&gt;t);
+					write_str_to_stream(outfile_S,buff);
+				}
+				break;
+			case 'd':
+				pd = 1;
+				goto new;
+			case 'D':
+				if (pd)
+					goto new;
+				if (psl == 0 ||
+				    (p = memchr(ps, '\n', psl)) == NULL) {
+					pd = 1;
+					goto new;
+				} else {
+					psl -= (p + 1) - ps;
+					memmove(ps, p + 1, psl);
+					goto top;
+				}
+			case 'g':
+				cspace(&amp;PS, hs, hsl, REPLACE);
+				break;
+			case 'G':
+				cspace(&amp;PS, "\n", 1, APPEND);
+				cspace(&amp;PS, hs, hsl, APPEND);
+				break;
+			case 'h':
+				cspace(&amp;HS, ps, psl, REPLACE);
+				break;
+			case 'H':
+				cspace(&amp;HS, "\n", 1, APPEND);
+				cspace(&amp;HS, ps, psl, APPEND);
+				break;
+			case 'i':
+				sprintf(buff,"%s", cp-&gt;t);
+				write_str_to_stream(outfile_S,buff);
+				break;
+			case 'l':
+				lputs(ps, psl);
+				break;
+			case 'n':
+				if (!nflag &amp;&amp; !pd)
+					OUT();
+				flush_appends();
+				if (!mf_fgets(&amp;PS, REPLACE))
+					exit(0);
+				pd = 0;
+				break;
+			case 'N':
+				flush_appends();
+				cspace(&amp;PS, "\n", 1, APPEND);
+				if (!mf_fgets(&amp;PS, APPEND))
+					exit(0);
+				break;
+			case 'p':
+				if (pd)
+					break;
+				OUT();
+				break;
+			case 'P':
+				if (pd)
+					break;
+				if ((p = memchr(ps, '\n', psl)) != NULL) {
+					oldpsl = psl;
+					oldpsanl = psanl;
+					psl = p - ps;
+					psanl = 1;
+				}
+				OUT();
+				if (p != NULL) {
+					psl = oldpsl;
+					psanl = oldpsanl;
+				}
+				break;
+			case 'q':
+				if (!nflag &amp;&amp; !pd)
+					OUT();
+				flush_appends();
+				exit(0);
+			case 'r':
+				if (appendx &gt;= appendnum)
+					if ((appends = realloc(appends,
+					    sizeof(struct s_appends) *
+					    (appendnum *= 2))) == NULL)
+						err(1, "realloc");
+				appends[appendx].type = AP_FILE;
+				appends[appendx].s = cp-&gt;t;
+				appends[appendx].len = strlen(cp-&gt;t);
+				appendx++;
+				break;
+			case 's':
+				sdone |= substitute(cp);
+				break;
+			case 't':
+				if (sdone) {
+					sdone = 0;
+					cp = cp-&gt;u.c;
+					goto redirect;
+				}
+				break;
+			case 'w':
+				if (pd)
+					break;
+				if (cp-&gt;u.fd == -1 &amp;&amp; (cp-&gt;u.fd = open(cp-&gt;t,
+				    O_WRONLY|O_APPEND|O_CREAT|O_TRUNC,
+				    DEFFILEMODE)) == -1)
+					err(1, "%s", cp-&gt;t);
+				if (write(cp-&gt;u.fd, ps, psl) != (ssize_t)psl ||
+				    write(cp-&gt;u.fd, "\n", 1) != 1)
+					err(1, "%s", cp-&gt;t);
+				break;
+			case 'x':
+				/*
+				 * If the hold space is null, make it empty
+				 * but not null.  Otherwise the pattern space
+				 * will become null after the swap, which is
+				 * an abnormal condition.
+				 */
+				if (hs == NULL)
+					cspace(&amp;HS, "", 0, REPLACE);
+				tspace = PS;
+				PS = HS;
+				psanl = tspace.append_newline;
+				HS = tspace;
+				break;
+			case 'y':
+				if (pd || psl == 0)
+					break;
+				do_tr(cp-&gt;u.y);
+				break;
+			case ':':
+			case '}':
+				break;
+			case '=':
+				sprintf(buff,"%s", cp-&gt;t);
+				write_str_to_stream(outfile_S,buff);
+			}
+			cp = cp-&gt;next;
+		} /* for all cp */
+
+new:		if (!nflag &amp;&amp; !pd)
+			OUT();
+		flush_appends();
+	} /* for all lines */
+}
+
+/*
+ * TRUE if the address passed matches the current program state
+ * (lastline, linenumber, ps).
+ */
+#define	MATCH(a)							\
+	((a)-&gt;type == AT_RE ? regexec_e((a)-&gt;u.r, ps, 0, 1, 0, psl) :	\
+	    (a)-&gt;type == AT_LINE ? linenum == (a)-&gt;u.l : lastline())
+
+/*
+ * Return TRUE if the command applies to the current line.  Sets the start
+ * line for process ranges.  Interprets the non-select (``!'') flag.
+ */
+static inline int
+applies(struct s_command *cp)
+{
+	int r;
+
+	lastaddr = 0;
+	if (cp-&gt;a1 == NULL &amp;&amp; cp-&gt;a2 == NULL)
+		r = 1;
+	else if (cp-&gt;a2)
+		if (cp-&gt;startline &gt; 0) {
+                        switch (cp-&gt;a2-&gt;type) {
+                        case AT_RELLINE:
+                                if (linenum - cp-&gt;startline &lt;= cp-&gt;a2-&gt;u.l)
+                                        r = 1;
+                                else {
+				        cp-&gt;startline = 0;
+				        r = 0;
+                                }
+                                break;
+                        default:
+                                if (MATCH(cp-&gt;a2)) {
+                                        cp-&gt;startline = 0;
+                                        lastaddr = 1;
+                                        r = 1;
+                                } else if (cp-&gt;a2-&gt;type == AT_LINE &amp;&amp;
+                                            linenum &gt; cp-&gt;a2-&gt;u.l) {
+                                        /*
+                                         * We missed the 2nd address due to a
+                                         * branch, so just close the range and
+                                         * return false.
+                                         */
+                                        cp-&gt;startline = 0;
+                                        r = 0;
+                                } else
+                                        r = 1;
+                        }
+		} else if (cp-&gt;a1 &amp;&amp; MATCH(cp-&gt;a1)) {
+			/*
+			 * If the second address is a number less than or
+			 * equal to the line number first selected, only
+			 * one line shall be selected.
+			 *	-- POSIX 1003.2
+			 * Likewise if the relative second line address is zero.
+			 */
+			if ((cp-&gt;a2-&gt;type == AT_LINE &amp;&amp;
+			    linenum &gt;= cp-&gt;a2-&gt;u.l) ||
+			    (cp-&gt;a2-&gt;type == AT_RELLINE &amp;&amp; cp-&gt;a2-&gt;u.l == 0))
+				lastaddr = 1;
+			else {
+				cp-&gt;startline = linenum;
+			}
+			r = 1;
+		} else
+			r = 0;
+	else
+		r = MATCH(cp-&gt;a1);
+	return (cp-&gt;nonsel ? ! r : r);
+}
+
+/*
+ * Reset the sed processor to its initial state.
+ */
+void
+resetstate(void)
+{
+	struct s_command *cp;
+
+	/*
+	 * Reset all in-range markers.
+	 */
+	for (cp = prog; cp; cp = cp-&gt;code == '{' ? cp-&gt;u.c : cp-&gt;next)
+		if (cp-&gt;a2)
+			cp-&gt;startline = 0;
+
+	/*
+	 * Clear out the hold space.
+	 */
+	cspace(&amp;HS, "", 0, REPLACE);
+}
+
+/*
+ * substitute --
+ *	Do substitutions in the pattern space.  Currently, we build a
+ *	copy of the new pattern space in the substitute space structure
+ *	and then swap them.
+ */
+static int
+substitute(const struct s_command *cp)
+{
+	SPACE tspace;
+	const regex_t *re;
+	regoff_t slen;
+	int lastempty, n;
+	regoff_t le = 0;
+	char *s;
+
+	s = ps;
+	re = cp-&gt;u.s-&gt;re;
+	if (re == NULL) {
+		if (defpreg != NULL &amp;&amp; cp-&gt;u.s-&gt;maxbref &gt; defpreg-&gt;re_nsub) {
+			linenum = cp-&gt;u.s-&gt;linenum;
+			errx(1, "%lu: %s: \\%u not defined in the RE",
+					linenum, fname, cp-&gt;u.s-&gt;maxbref);
+		}
+	}
+	if (!regexec_e(re, ps, 0, 0, 0, psl))
+		return (0);
+
+	SS.len = 0;				/* Clean substitute space. */
+	slen = psl;
+	n = cp-&gt;u.s-&gt;n;
+	lastempty = 1;
+
+	do {
+		/* Copy the leading retained string. */
+		if (n &lt;= 1 &amp;&amp; (match[0].rm_so &gt; le))
+			cspace(&amp;SS, s, match[0].rm_so - le, APPEND);
+
+		/* Skip zero-length matches right after other matches. */
+		if (lastempty || (match[0].rm_so - le) ||
+		    match[0].rm_so != match[0].rm_eo) {
+			if (n &lt;= 1) {
+				/* Want this match: append replacement. */
+				regsub(&amp;SS, ps, cp-&gt;u.s-&gt;new);
+				if (n == 1)
+					n = -1;
+			} else {
+				/* Want a later match: append original. */
+				if (match[0].rm_eo - le)
+					cspace(&amp;SS, s, match[0].rm_eo - le,
+					    APPEND);
+				n--;
+			}
+		}
+
+		/* Move past this match. */
+		s = ps + match[0].rm_eo;
+		slen = psl - match[0].rm_eo;
+		le = match[0].rm_eo;
+
+		/*
+		 * After a zero-length match, advance one byte,
+		 * and at the end of the line, terminate.
+		 */
+		if (match[0].rm_so == match[0].rm_eo) {
+			if (*s == '\0' || *s == '\n')
+				slen = -1;
+			else
+				slen--;
+			if (*s != '\0') {
+			 	cspace(&amp;SS, s++, 1, APPEND);
+				le++;
+			}
+			lastempty = 1;
+		} else
+			lastempty = 0;
+
+	} while (n &gt;= 0 &amp;&amp; slen &gt;= 0 &amp;&amp;
+	    regexec_e(re, ps, REG_NOTBOL, 0, le, psl));
+
+	/* Did not find the requested number of matches. */
+	if (n &gt; 0)
+		return (0);
+
+	/* Copy the trailing retained string. */
+	if (slen &gt; 0)
+		cspace(&amp;SS, s, slen, APPEND);
+
+	/*
+	 * Swap the substitute space and the pattern space, and make sure
+	 * that any leftover pointers into stdio memory get lost.
+	 */
+	tspace = PS;
+	PS = SS;
+	psanl = tspace.append_newline;
+	SS = tspace;
+	SS.space = SS.back;
+
+	/* Handle the 'p' flag. */
+	if (cp-&gt;u.s-&gt;p)
+		OUT();
+
+	/* Handle the 'w' flag. */
+	if (cp-&gt;u.s-&gt;wfile &amp;&amp; !pd) {
+		if (cp-&gt;u.s-&gt;wfd == -1 &amp;&amp; (cp-&gt;u.s-&gt;wfd = open(cp-&gt;u.s-&gt;wfile,
+		    O_WRONLY|O_APPEND|O_CREAT|O_TRUNC, DEFFILEMODE)) == -1)
+			err(1, "%s", cp-&gt;u.s-&gt;wfile);
+		if (write(cp-&gt;u.s-&gt;wfd, ps, psl) != (ssize_t)psl ||
+		    write(cp-&gt;u.s-&gt;wfd, "\n", 1) != 1)
+			err(1, "%s", cp-&gt;u.s-&gt;wfile);
+	}
+	return (1);
+}
+
+/*
+ * do_tr --
+ *	Perform translation ('y' command) in the pattern space.
+ */
+static void
+do_tr(const struct s_tr *y)
+{
+	SPACE tmp;
+	char c, *p;
+	size_t clen, left;
+	int i;
+
+	if (MB_CUR_MAX == 1) {
+		/*
+		 * Single-byte encoding: perform in-place translation
+		 * of the pattern space.
+		 */
+		for (p = ps; p &lt; &amp;ps[psl]; p++)
+			*p = y-&gt;bytetab[(u_char)*p];
+	} else {
+		/*
+		 * Multi-byte encoding: perform translation into the
+		 * translation space, then swap the translation and
+		 * pattern spaces.
+		 */
+		/* Clean translation space. */
+		YS.len = 0;
+		for (p = ps, left = psl; left &gt; 0; p += clen, left -= clen) {
+			if ((c = y-&gt;bytetab[(u_char)*p]) != '\0') {
+				cspace(&amp;YS, &amp;c, 1, APPEND);
+				clen = 1;
+				continue;
+			}
+			for (i = 0; i &lt; y-&gt;nmultis; i++)
+				if (left &gt;= y-&gt;multis[i].fromlen &amp;&amp;
+				    memcmp(p, y-&gt;multis[i].from,
+				    y-&gt;multis[i].fromlen) == 0)
+					break;
+			if (i &lt; y-&gt;nmultis) {
+				cspace(&amp;YS, y-&gt;multis[i].to,
+				    y-&gt;multis[i].tolen, APPEND);
+				clen = y-&gt;multis[i].fromlen;
+			} else {
+				cspace(&amp;YS, p, 1, APPEND);
+				clen = 1;
+			}
+		}
+		/* Swap the translation space and the pattern space. */
+		tmp = PS;
+		PS = YS;
+		psanl = tmp.append_newline;
+		YS = tmp;
+		YS.space = YS.back;
+	}
+}
+
+/*
+ * Flush append requests.  Always called before reading a line,
+ * therefore it also resets the substitution done (sdone) flag.
+ */
+static void
+flush_appends(void)
+{
+	FILE *f;
+	int count, i;
+	char buf[8 * 1024];
+	int n;
+
+	for (i = 0; i &lt; appendx; i++)
+		switch (appends[i].type) {
+		case AP_STRING:
+			for(n=0;n&lt;appends[i].len;n++){
+				write_pse_stream(outfile_S,appends[i].s[n]);
+			}
+			/*
+			fwrite(appends[i].s, sizeof(char), appends[i].len,
+			    outfile_S);
+			*/
+			break;
+		case AP_FILE:
+			/*
+			 * Read files probably shouldn't be cached.  Since
+			 * it's not an error to read a non-existent file,
+			 * it's possible that another program is interacting
+			 * with the sed script through the filesystem.  It
+			 * would be truly bizarre, but possible.  It's probably
+			 * not that big a performance win, anyhow.
+			 */
+			if ((f = fopen(appends[i].s, "r")) == NULL)
+				break;
+			while ((count = fread(buf, sizeof(char), sizeof(buf), f))){
+				for(n=0;n&lt;count;n++){
+					write_pse_stream(outfile_S,buf[n]);
+				}
+			}
+				/*(void)fwrite(buf, sizeof(char), count, outfile_S);*/
+			(void)fclose(f);
+			break;
+		}
+		/*
+	if (ferror(outfile_S))
+		errx(1, "%s: %s", outfname, strerror(errno ? errno : EIO));
+	appendx = sdone = 0;
+	*/
+}
+
+static void
+lputs(const char *s, size_t len)
+{
+	static const char escapes[] = "\\\a\b\f\r\t\v";
+	int c, col, width;
+	const char *p;
+	struct winsize win;
+	static int termwidth = -1;
+	size_t clen, i;
+	wchar_t wc;
+	mbstate_t mbs;
+	termwidth = 60;
+	if (termwidth == -1) {
+		if ((p = getenv("COLUMNS")) &amp;&amp; *p != '\0')
+			termwidth = atoi(p);
+		else if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &amp;win) == 0 &amp;&amp;
+		    win.ws_col &gt; 0)
+			termwidth = win.ws_col;
+		else
+			termwidth = 60;
+	}
+	if (termwidth &lt;= 0)
+		termwidth = 1;
+
+	memset(&amp;mbs, 0, sizeof(mbs));
+	col = 0;
+	while (len != 0) {
+		clen = mbrtowc(&amp;wc, s, len, &amp;mbs);
+		if (clen == 0)
+			clen = 1;
+		if (clen == (size_t)-1 || clen == (size_t)-2) {
+			wc = (unsigned char)*s;
+			clen = 1;
+			memset(&amp;mbs, 0, sizeof(mbs));
+		}
+		if (wc == '\n') {
+			if (col + 1 &gt;= termwidth)
+				write_str_to_stream(outfile_S,"\\\n");/*fprintf(outfile_S, "\\\n");*/
+			write_pse_stream(outfile_S,'$');
+			write_pse_stream(outfile_S,'\n');
+			/*fputc('$', outfile_S);
+			fputc('\n', outfile_S);*/
+			col = 0;
+		} else if (iswprint(wc)) {
+			width = 1;/*wcwidth(wc);*/    /*Cant compile with this func for some reason*/
+			if (col + width &gt;= termwidth) {
+				write_str_to_stream(outfile_S,"\\\n");
+				/*fprintf(outfile_S, "\\\n");*/
+				col = 0;
+			}
+			int fwriteC;
+			for(fwriteC=0;fwriteC&lt;clen;fwriteC++){
+				write_pse_stream(outfile_S,s[fwriteC]);
+			}
+			/*fwrite(s, 1, clen, outfile_S);*/
+			col += width;
+		} else if (wc != L'\0' &amp;&amp; (c = wctob(wc)) != EOF &amp;&amp;
+		    (p = strchr(escapes, c)) != NULL) {
+			if (col + 2 &gt;= termwidth) {
+				write_str_to_stream(outfile_S,"\\\n");
+				/*fprintf(outfile_S, "\\\n");*/
+				col = 0;
+			}
+			char buff[128];
+			sprintf(buff,"\\%c", "\\abfrtv"[p - escapes]);
+			write_str_to_stream(outfile_S,buff);
+			/*fprintf(outfile_S, "\\%c", "\\abfrtv"[p - escapes]);*/
+			col += 2;
+		} else {
+			if (col + 4 * clen &gt;= (unsigned)termwidth) {
+				write_str_to_stream(outfile_S,"\\\n");
+				col = 0;
+			}
+			for (i = 0; i &lt; clen; i++){
+				char buff[128];
+				sprintf(buff,"\\%03o",
+				    (int)(unsigned char)s[i]);
+					write_str_to_stream(outfile_S,buff);
+			}
+			/*
+				fprintf(outfile_S, "\\%03o",
+				    (int)(unsigned char)s[i]);
+					*/
+			col += 4 * clen;
+		}
+		s += clen;
+		len -= clen;
+	}
+	if (col + 1 &gt;= termwidth)
+		write_str_to_stream(outfile_S,"\\\n");
+	write_pse_stream(outfile_S,'$');
+	write_pse_stream(outfile_S,'\n');
+	/*
+	(void)fputc('$', outfile_S);
+	(void)fputc('\n', outfile_S);
+	*/
+	/*if (ferror(outfile_S))
+		errx(1, "%s: %s", outfname, strerror(errno ? errno : EIO));*/
+}
+
+static int
+regexec_e(const regex_t *preg, const char *string, int eflags, int nomatch,
+	size_t start, size_t stop)
+{
+	int eval;
+
+	if (preg == NULL) {
+		if (defpreg == NULL)
+			errx(1, "first RE may not be empty");
+	} else
+		defpreg = preg;
+
+	/* Set anchors */
+	match[0].rm_so = start;
+	match[0].rm_eo = stop;
+
+	eval = regexec(defpreg, string,
+	    nomatch ? 0 : maxnsub + 1, match, eflags | REG_STARTEND);
+	switch(eval) {
+	case 0:
+		return (1);
+	case REG_NOMATCH:
+		return (0);
+	}
+	errx(1, "RE error: %s", strregerror(eval, defpreg));
+	/* NOTREACHED */
+}
+
+/*
+ * regsub - perform substitutions after a regexp match
+ * Based on a routine by Henry Spencer
+ */
+static void
+regsub(SPACE *sp, const char *string, const char *src)
+{
+	int len, no;
+	char c, *dst;
+
+#define	NEEDSP(reqlen)							\
+	/* XXX What is the +1 for? */					\
+	if (sp-&gt;len + (reqlen) + 1 &gt;= sp-&gt;blen) {			\
+		sp-&gt;blen += (reqlen) + 1024;				\
+		if ((sp-&gt;space = sp-&gt;back = realloc(sp-&gt;back, sp-&gt;blen)) \
+		    == NULL)						\
+			err(1, "realloc");				\
+		dst = sp-&gt;space + sp-&gt;len;				\
+	}
+
+	dst = sp-&gt;space + sp-&gt;len;
+	while ((c = *src++) != '\0') {
+		if (c == '&amp;')
+			no = 0;
+		else if (c == '\\' &amp;&amp; isdigit((unsigned char)*src))
+			no = *src++ - '0';
+		else
+			no = -1;
+		if (no &lt; 0) {		/* Ordinary character. */
+			if (c == '\\' &amp;&amp; (*src == '\\' || *src == '&amp;'))
+				c = *src++;
+			NEEDSP(1);
+			*dst++ = c;
+			++sp-&gt;len;
+		} else if (match[no].rm_so != -1 &amp;&amp; match[no].rm_eo != -1) {
+			len = match[no].rm_eo - match[no].rm_so;
+			NEEDSP(len);
+			memmove(dst, string + match[no].rm_so, len);
+			dst += len;
+			sp-&gt;len += len;
+		}
+	}
+	NEEDSP(1);
+	*dst = '\0';
+}
+
+/*
+ * cspace --
+ *	Concatenate space: append the source space to the destination space,
+ *	allocating new space as necessary.
+ */
+void
+cspace(SPACE *sp, const char *p, size_t len, enum e_spflag spflag)
+{
+	size_t tlen;
+
+	/* Make sure SPACE has enough memory and ramp up quickly. */
+	tlen = sp-&gt;len + len + 1;
+	if (tlen &gt; sp-&gt;blen) {
+		sp-&gt;blen = tlen + 1024;
+		if ((sp-&gt;space = sp-&gt;back = realloc(sp-&gt;back, sp-&gt;blen)) ==
+		    NULL)
+			err(1, "realloc");
+	}
+
+	if (spflag == REPLACE)
+		sp-&gt;len = 0;
+
+	memmove(sp-&gt;space + sp-&gt;len, p, len);
+
+	sp-&gt;space[sp-&gt;len += len] = '\0';
+}
+
+/*
+ * Close all cached opened files and report any errors
+ */
+void
+cfclose(struct s_command *cp, const struct s_command *end)
+{
+
+	for (; cp != end; cp = cp-&gt;next)
+		switch(cp-&gt;code) {
+		case 's':
+			if (cp-&gt;u.s-&gt;wfd != -1 &amp;&amp; close(cp-&gt;u.s-&gt;wfd))
+				/*err(1, "%s", cp-&gt;u.s-&gt;wfile);*/;
+			cp-&gt;u.s-&gt;wfd = -1;
+			break;
+		case 'w':
+			if (cp-&gt;u.fd != -1 &amp;&amp; close(cp-&gt;u.fd))
+				/*err(1, "%s", cp-&gt;t);*/;
+			cp-&gt;u.fd = -1;
+			break;
+		case '{':
+			cfclose(cp-&gt;u.c, cp-&gt;next);
+			break;
+		}
+}
+/*
+ * Linked list of units (strings and files) to be compiled
+ */
+struct s_compunit {
+	struct s_compunit *next;
+	enum e_cut {CU_FILE, CU_STRING} type;
+	const char *s;			/* Pointer to string or fname */
+};
+
+/*
+ * Linked list pointer to compilation units and pointer to current
+ * next pointer.
+ */
+static struct s_compunit *script, **cu_nextp = &amp;script;
+
+/*
+ * Linked list of files to be processed
+ */
+struct s_flist {
+	const char *fname;
+	struct s_flist *next;
+};
+
+/*
+ * Linked list pointer to files and pointer to current
+ * next pointer.
+ */
+/*static struct s_flist *files, **fl_nextp = &amp;files;*/
+
+__thread pse_stream *infile_S;			/* Current input file */
+__thread pse_stream *outfile_S;			/* Current output file */
+
+__thread int aflag, eflag, nflag;
+__thread int rflags = 0;
+static __thread int rval;		/* Exit status */
+
+static __thread int ispan;		/* Whether inplace editing spans across files */
+
+/*
+ * Current file and line number; line numbers restart across compilation
+ * units, but span across input files.  The latter is optional if editing
+ * in place.
+ */
+const __thread char *fname;		/* File name. */
+const __thread char *outfname;		/* Output file name */
+static __thread char oldfname[PATH_MAX];	/* Old file name (for in-place editing) */
+static __thread char tmpfname[PATH_MAX];	/* Temporary file name (for in-place editing) */
+static __thread const char *inplace;	/* Inplace edit file extension. */
+__thread u_long linenum;
+__thread int readingStreamIndex = 1;
+/*
+ * Like fgets, but go through the chain of compilation units chaining them
+ * together.  Empty strings and files are ignored.
+ */
+const char *
+cu_fgets(int *more)
+{
+    /*Ryu*/
+    static size_t lastsize;
+    char *buff = malloc(1024);
+    if(buff==NULL){
+        fprintf(stderr, "allocate failed\n");
+        exit(1);
+    }
+    pse_stream *read = get_read_Stream_back(sed_glbal_order,1);
+    again_ryu :
+    linenum++;
+	int len;
+    if((len=read_ln_ryu(read,buff,1024))&gt;1){
+        if (linenum == 1 &amp;&amp; buff[0] == '#' &amp;&amp; buff[1] == 'n')
+            nflag = 1;
+        return buff;
+    }else if(len&lt;=0){
+        return NULL;
+    }else{
+        goto again_ryu;
+    }
+    /*End ryu*/
+}
+
+/*
+ * Like fgets, but go through the list of files chaining them together.
+ * Set len to the length of the line.
+ */
+int
+mf_fgets(SPACE *sp, enum e_spflag spflag)
+{
+	struct stat sb;
+	ssize_t len;
+	static char *p = NULL;
+	static size_t plen = 0;
+	int c;
+	static int firstfile;
+
+	if (infile_S == NULL) {
+		/* stdin? */
+		/*ryu */
+		infile_S = get_read_Stream(sed_glbal_order,1);
+		outfile_S = get_write_Stream(sed_glbal_order,1);
+		fname = "RIS1";
+		outfname = "ROS1";
+		firstfile = 1;
+		/*end ryu*/
+		/*
+		if (files-&gt;fname == NULL) {
+			if (inplace != NULL)
+				errx(1, "-I or -i may not be used with stdin");
+			infile_S = stdin;
+			fname = "stdin";
+			outfile_S = stdout;
+			outfname = "stdout";
+		}
+		firstfile = 1;
+		*/
+	}
+
+	for (;;) {
+		if(infile_S!=NULL&amp;&amp;Is_st_reading(infile_S)){
+			break;
+		}else{
+			readingStreamIndex++;
+			infile_S = get_read_Stream(sed_glbal_order,readingStreamIndex);
+			if(infile_S==get_read_Stream_back(sed_glbal_order,1)){
+				return 0;
+			}
+		}
+	}
+	/*This comment is from original sed*/
+	/*
+	 * We are here only when infile_S is open and we still have something
+	 * to read from it.
+	 *
+	 * Use getline() so that we can handle essentially infinite input
+	 * data.  The p and plen are static so each invocation gives
+	 * getline() the same buffer which is expanded as needed.
+	 */
+	 char buff[2048];
+	 len = read_ln_ryu(infile_S,buff,2048);
+	/*len = getline(&amp;p, &amp;plen, infile_S);*/
+	if (len == -1){
+		return 0;
+		/*err(1, "%s", fname);*/
+	}
+	if (len != 0 &amp;&amp; buff[len - 1] == '\n') {
+		sp-&gt;append_newline = 1;
+		len--;
+	} else if (!lastline()) {
+		sp-&gt;append_newline = 1;
+	} else {
+		sp-&gt;append_newline = 0;
+	}
+	cspace(sp, buff, len, spflag);
+	linenum++;
+	return (1);
+}
+
+/*
+ * Add a compilation unit to the linked list
+ */
+static void
+add_compunit(enum e_cut type, const char *s)
+{
+	struct s_compunit *cu;
+	if ((cu = malloc(sizeof(struct s_compunit))) == NULL)
+		err(1, "malloc");
+	cu-&gt;type = type;
+	cu-&gt;s = s;
+	cu-&gt;next = NULL;
+	*cu_nextp = cu;
+	cu_nextp = &amp;cu-&gt;next;
+}
+
+/*
+ * Add a file to the linked list
+ */
+static void
+add_file(const char *s)
+{
+	/*
+	struct s_flist *fp;
+
+	if ((fp = malloc(sizeof(struct s_flist))) == NULL)
+		err(1, "malloc");
+	fp-&gt;next = NULL;
+	*fl_nextp = fp;
+	fp-&gt;fname = s;
+	fl_nextp = &amp;fp-&gt;next;
+	*/
+}
+
+static int
+next_files_have_lines(void)
+{
+	pse_stream *next = get_read_Stream(sed_glbal_order,readingStreamIndex+1);
+	if(next!=NULL&amp;&amp;next!=get_read_Stream_back(sed_glbal_order,1)){
+		return 1;
+	}
+	return 0;
+	/*
+	struct s_flist *file;
+	FILE *file_fd;
+	int ch;
+
+	file = files;
+	while ((file = file-&gt;next) != NULL) {
+		if ((file_fd = fopen(file-&gt;fname, "r")) == NULL)
+			continue;
+
+		if ((ch = getc(file_fd)) != EOF) {
+
+			ungetc(ch, file_fd);
+			fclose(file_fd);
+			return (1);
+		}
+
+		fclose(file_fd);
+	}
+	return (0);
+	*/
+}
+
+int
+lastline(void)
+{
+	int ch;
+	return !Is_st_reading(infile_S);
+	/*
+	if (feof(infile_S)) {
+		return !(
+		    (inplace == NULL || ispan) &amp;&amp;
+		    next_files_have_lines());
+	}
+	if ((ch = getc(infile_S)) == EOF) {
+		return !(
+		    (inplace == NULL || ispan) &amp;&amp;
+		    next_files_have_lines());
+	}
+	ungetc(ch, infile_S);
+	return (0);
+	*/
+}
+void ryu_built_in_sed_entry(struct order *order){
+    pse_stream *in = get_read_Stream(order,1);
+    pse_stream *program = get_read_Stream_back(order,1);
+    pse_stream *out = get_write_Stream(order,1);
+    if(in==NULL||out==NULL||program==in){
+        fprintf(stderr, "sed got too few argments\n");
+    }
+    sed_glbal_order = order;
+    compile();
+    process();
+}
+</Code>
+    <Description>sed</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>stdlib</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+</ryuLib>

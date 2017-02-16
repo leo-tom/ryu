@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>stopper</Name>
+    <NameInC>stopper_ryu</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>2</AcceptableIn>
+    <AcceptableOut>2</AcceptableOut>
+    <Code>void stopper_ryu(struct order *order){
+    pse_stream *in = get_read_Stream(order,1);
+    pse_stream *stopping = get_read_Stream_back(order,1);
+    pse_stream *out = get_write_Stream(order,1);
+    pse_stream *stopped = get_write_Stream_back(order,1);
+    int c;
+    while((c=read_pse_stream(in))!=EOF){
+        write_pse_stream(out,c);
+    }
+    while((c=read_pse_stream(stopping))!=EOF){
+        write_pse_stream(stopped,c);
+    }
+}
+</Code>
+    <Description>Stop flow of stream given to 2nd stream while given first stream is not closed.
+Given stream will be output to as it is to output stream.</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>stdlib</Familly>
+    <Includes num="0">stdio</Includes>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+  </FilterInfo>
+</ryuLib>

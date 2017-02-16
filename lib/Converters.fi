@@ -1,0 +1,825 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>DoubleToFloat</Name>
+    <NameInC>DoubleToFloatConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void DoubleToFloatConverter(struct order *order){
+    int i;
+    for(i=1;i&lt;=8;i++){
+        pse_stream *in = get_read_Stream(order,1);
+        pse_stream *out = get_write_Stream(order,1);
+        if(in!=NULL||out!=NULL){
+            double val;
+            while((val=read_double(in))){
+                write_float(out,(float)val);
+            }
+        }
+    }
+}</Code>
+    <Description>Convert double value to float value.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>DoubleToInt</Name>
+    <NameInC>DoubleToIntConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void DoubleToIntConverter(struct order *order){
+    int i;
+    for(i=1;i&lt;=8;i++){
+        pse_stream *in = get_read_Stream(order,1);
+        pse_stream *out = get_write_Stream(order,1);
+        if(in!=NULL||out!=NULL){
+            double val;
+            while((val=read_double(in))){
+                write_int(out,(int)val);
+            }
+        }
+    }
+}</Code>
+    <Description>Convert double value to int value.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>DoubleToLong</Name>
+    <NameInC>DoubleToLongConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void DoubleToLongConverter(struct order *order){
+    int i;
+    for(i=1;i&lt;=8;i++){
+        pse_stream *in = get_read_Stream(order,1);
+        pse_stream *out = get_write_Stream(order,1);
+        if(in!=NULL||out!=NULL){
+            double val;
+            while((val=read_double(in))){
+                write_long(out,(long)val);
+            }
+        }
+    }
+}</Code>
+    <Description>Convert double value to long value.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>DoubleToScientificString</Name>
+    <NameInC>DoubleToScinencetrConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void DoubleToScinencetrConverter(struct order *order){
+	char buff[128];
+	int i;
+	for(i=1;i&lt;=8;i++){
+		pse_stream *in = get_read_Stream(order,i);
+		pse_stream *out = get_write_Stream(order,i);
+		if(in!=NULL&amp;&amp;out!=NULL){
+			double val;
+			while((val=read_double(in))){
+				sprintf(buff,"%le\n",val);
+				write_str_to_stream(out,buff);
+			}
+		}else{
+			return;
+		}
+	}
+}</Code>
+    <Description>Convert double value to scientific string.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>DoubleToString</Name>
+    <NameInC>DoubleToStrConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void DoubleToStrConverter(struct order *order){
+	char buff[128];
+	int i;
+	for(i=1;i&lt;=8;i++){
+		pse_stream *in = get_read_Stream(order,i);
+		pse_stream *out = get_write_Stream(order,i);
+		if(in!=NULL&amp;&amp;out!=NULL){
+			double val;
+			while((val=read_double(in))){
+				sprintf(buff,"%lf\n",val);
+				write_str_to_stream(out,buff);
+			}
+		}else{
+			return;
+		}
+	}
+}
+</Code>
+    <Description>Convert double value to string.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>FloatToDouble</Name>
+    <NameInC>FloatToDoubleConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void FloatToDoubleConverter(struct order *order){
+    int i;
+    for(i=1;i&lt;=8;i++){
+        pse_stream *in = get_read_Stream(order,1);
+        pse_stream *out = get_write_Stream(order,1);
+        if(in!=NULL||out!=NULL){
+            float val;
+            while((val=read_float(in))){
+                write_double(out,(double)val);
+            }
+        }
+    }
+}
+</Code>
+    <Description>Convert float value to double value.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>FloatToInt</Name>
+    <NameInC>FloatToIntConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void FloatToIntConverter(struct order *order){
+    int i;
+    for(i=1;i&lt;=8;i++){
+        pse_stream *in = get_read_Stream(order,1);
+        pse_stream *out = get_write_Stream(order,1);
+        if(in!=NULL||out!=NULL){
+            float val;
+            while((val=read_float(in))){
+                write_int(out,(int)val);
+            }
+        }
+    }
+}</Code>
+    <Description>Convert float value to int value.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>FloatToLong</Name>
+    <NameInC>FloatToLongConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void FloatToLongConverter(struct order *order){
+    int i;
+    for(i=1;i&lt;=8;i++){
+        pse_stream *in = get_read_Stream(order,1);
+        pse_stream *out = get_write_Stream(order,1);
+        if(in!=NULL||out!=NULL){
+            float val;
+            while((val=read_float(in))){
+                write_long(out,(long)val);
+            }
+        }
+    }
+}</Code>
+    <Description>Convert float value to long value.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>FloatToScientificString</Name>
+    <NameInC>FloatToScienceStrConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void FloatToScienceStrConverter(struct order *order){
+	char buff[128];
+	int i;
+	for(i=1;i&lt;=8;i++){
+		pse_stream *in = get_read_Stream(order,i);
+		pse_stream *out = get_write_Stream(order,i);
+		if(in!=NULL&amp;&amp;out!=NULL){
+			float val;
+			while((val=read_float(in))){
+				sprintf(buff,"%e\n",val);
+				write_str_to_stream(out,buff);
+			}
+		}else{
+			return;
+		}
+	}
+}</Code>
+    <Description>Convert float value to scientific string.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>FloatToString</Name>
+    <NameInC>FloatToStrConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void FloatToStrConverter(struct order *order){
+	char buff[128];
+	int i;
+	for(i=1;i&lt;=8;i++){
+		pse_stream *in = get_read_Stream(order,i);
+		pse_stream *out = get_write_Stream(order,i);
+		if(in!=NULL&amp;&amp;out!=NULL){
+			float val;
+			while((val=read_float(in))){
+				sprintf(buff,"%f\n",val);
+				write_str_to_stream(out,buff);
+			}
+		}else{
+			return;
+		}
+	}
+}</Code>
+    <Description>Convert float value to string.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>IntToDouble</Name>
+    <NameInC>IntToDoubleConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void IntToDoubleConverter(struct order *order){
+    int i;
+    for(i=1;i&lt;=8;i++){
+        pse_stream *in = get_read_Stream(order,1);
+        pse_stream *out = get_write_Stream(order,1);
+        if(in!=NULL||out!=NULL){
+            double val;
+            while((val=read_int(in))){
+                write_double(out,(double)val);
+            }
+        }
+    }
+}</Code>
+    <Description>Convert int value to double value.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>IntToFloat</Name>
+    <NameInC>IntToFloatConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void IntToFloatConverter(struct order *order){
+    int i;
+    for(i=1;i&lt;=8;i++){
+        pse_stream *in = get_read_Stream(order,1);
+        pse_stream *out = get_write_Stream(order,1);
+        if(in!=NULL||out!=NULL){
+            int val;
+            while((val=read_int(in))){
+                write_float(out,(float)val);
+            }
+        }
+    }
+}</Code>
+    <Description>Convert int value to float value.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>IntToHexString</Name>
+    <NameInC>IntToHexStrConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void IntToHexStrConverter(struct order *order){
+	char buff[128];
+	int i;
+	for(i=1;i&lt;=8;i++){
+		pse_stream *in = get_read_Stream(order,i);
+		pse_stream *out = get_write_Stream(order,i);
+		if(in!=NULL&amp;&amp;out!=NULL){
+			int val;
+			while((val=read_int(in))){
+				sprintf(buff,"%x\n",val);
+				write_str_to_stream(out,buff);
+			}
+		}else{
+			return;
+		}
+	}
+}</Code>
+    <Description>Convert int value to hex string.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>IntToLong</Name>
+    <NameInC>IntToLongConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void IntToLongConverter(struct order *order){
+    int i;
+    for(i=1;i&lt;=8;i++){
+        pse_stream *in = get_read_Stream(order,1);
+        pse_stream *out = get_write_Stream(order,1);
+        if(in!=NULL||out!=NULL){
+            int val;
+            while((val=read_int(in))){
+                write_long(out,(long)val);
+            }
+        }
+    }
+}</Code>
+    <Description>Convert int value to long value.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>IntToString</Name>
+    <NameInC>IntToStrConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void IntToStrConverter(struct order *order){
+	char buff[128];
+	int i;
+	for(i=1;i&lt;=8;i++){
+		pse_stream *in = get_read_Stream(order,i);
+		pse_stream *out = get_write_Stream(order,i);
+		if(in!=NULL&amp;&amp;out!=NULL){
+			int val;
+			while((val=read_int(in))){
+				sprintf(buff,"%d\n",val);
+				write_str_to_stream(out,buff);
+			}
+		}else{
+			return;
+		}
+	}
+}</Code>
+    <Description>Convert float value to string.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>LongToDouble</Name>
+    <NameInC>LongToDoubleConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void LongToDoubleConverter(struct order *order){
+    int i;
+    for(i=1;i&lt;=8;i++){
+        pse_stream *in = get_read_Stream(order,1);
+        pse_stream *out = get_write_Stream(order,1);
+        if(in!=NULL||out!=NULL){
+            long val;
+            while((val=read_long(in))){
+                write_doule(out,(double)val);
+            }
+        }
+    }
+}</Code>
+    <Description>Convert long value to double value.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>LongToFloat</Name>
+    <NameInC>LongToFloatConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void LongToFloatConverter(struct order *order){
+    int i;
+    for(i=1;i&lt;=8;i++){
+        pse_stream *in = get_read_Stream(order,1);
+        pse_stream *out = get_write_Stream(order,1);
+        if(in!=NULL||out!=NULL){
+            float val;
+            while((val=read_long(in))){
+                write_float(out,(float)val);
+            }
+        }
+    }
+}</Code>
+    <Description>Convert long value to float value.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>LongToHexString</Name>
+    <NameInC>LongToHexStrConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void LongToHexStrConverter(struct order *order){
+	char buff[128];
+	int i;
+	for(i=1;i&lt;=8;i++){
+		pse_stream *in = get_read_Stream(order,i);
+		pse_stream *out = get_write_Stream(order,i);
+		if(in!=NULL&amp;&amp;out!=NULL){
+			long val;
+			while((val=read_long(in))){
+				sprintf(buff,"%lx\n",val);
+				write_str_to_stream(out,buff);
+			}
+		}else{
+			return;
+		}
+	}
+}</Code>
+    <Description>Convert long value to hex string.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>LongToInt</Name>
+    <NameInC>LongToIntConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void LongToIntConverter(struct order *order){
+    int i;
+    for(i=1;i&lt;=8;i++){
+        pse_stream *in = get_read_Stream(order,1);
+        pse_stream *out = get_write_Stream(order,1);
+        if(in!=NULL||out!=NULL){
+            long val;
+            while((val=read_long(in))){
+                write_int(out,(int)val);
+            }
+        }
+    }
+}</Code>
+    <Description>Convert long value to int value.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>LongToString</Name>
+    <NameInC>LongToStrConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void LongToStrConverter(struct order *order){
+	char buff[128];
+	int i;
+	for(i=1;i&lt;=8;i++){
+		pse_stream *in = get_read_Stream(order,i);
+		pse_stream *out = get_write_Stream(order,i);
+		if(in!=NULL&amp;&amp;out!=NULL){
+			long val;
+			while((val=read_long(in))){
+				sprintf(buff,"%ld\n",val);
+				write_str_to_stream(out,buff);
+			}
+		}else{
+			return;
+		}
+	}
+}</Code>
+    <Description>Convert long value to string.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>PtrToString</Name>
+    <NameInC>PtrToStrConverter</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void PtrToStrConverter(struct order *order){
+	char buff[128];
+	int i;
+	for(i=1;i&lt;=8;i++){
+		pse_stream *in = get_read_Stream(order,i);
+		pse_stream *out = get_write_Stream(order,i);
+		if(in!=NULL&amp;&amp;out!=NULL){
+			void *val;
+			while((val=read_ptr(in))){
+				sprintf(buff,"%p\n",val);
+				write_str_to_stream(out,buff);
+			}
+		}else{
+			return;
+		}
+	}
+}</Code>
+    <Description>Convert pointer value to string.
+Value will be written on by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>StringToDouble</Name>
+    <NameInC>StrToDoubleConverter_ryu</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void StrToDoubleConverter_ryu(struct order *order){
+	int i = 0;
+	char buff[1024];
+	for(i=1;i&lt;=8;i++){
+		pse_stream *in = get_read_Stream(order,i);
+		pse_stream *out = get_write_Stream(order,i);
+		if(in!=NULL&amp;&amp;out!=NULL){
+			while(read_ln_ryu(in,buff,1024)&gt;0){
+				write_double(out,atof(buff));
+			}
+		}else{
+			return;
+		}
+	}
+}
+</Code>
+    <Description>Convert String to Double value.
+Read data line by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>StringToFloat</Name>
+    <NameInC>StrToFloatConverter_ryu</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void StrToFloatConverter_ryu(struct order *order){
+	int i = 0;
+	char buff[1024];
+	for(i=1;i&lt;=8;i++){
+		pse_stream *in = get_read_Stream(order,i);
+		pse_stream *out = get_write_Stream(order,i);
+		if(in!=NULL&amp;&amp;out!=NULL){
+			while(read_ln_ryu(in,buff,1024)&gt;0){
+				write_float(out,atof(buff));
+			}
+		}
+	}
+}</Code>
+    <Description>Convert String to float value.
+Read data line by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+    <Includes num="5"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>StringToInt</Name>
+    <NameInC>StrToIntConverter_ryu</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void StrToIntConverter_ryu(struct order *order){
+	int i = 0;
+	char buff[1024];
+	for(i=1;i&lt;=8;i++){
+		pse_stream *in = get_read_Stream(order,i);
+		pse_stream *out = get_write_Stream(order,i);
+		if(in!=NULL&amp;&amp;out!=NULL){
+			while(read_ln_ryu(in,buff,1024)&gt;0){
+				write_int(out,atoi(buff));
+			}
+		}else{
+			return;
+		}
+	}
+}</Code>
+    <Description>Convert String to int value.
+Read data line by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+    <Includes num="5"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>StringToLong</Name>
+    <NameInC>StrToLongConverter_ryu</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void StrToLongConverter_ryu(struct order *order){
+	int i = 0;
+	char buff[1024];
+	for(i=1;i&lt;=8;i++){
+		pse_stream *in = get_read_Stream(order,i);
+		pse_stream *out = get_write_Stream(order,i);
+		if(in!=NULL&amp;&amp;out!=NULL){
+			while(read_ln_ryu(in,buff,1024)&gt;0){
+				write_double(out,atol(buff));
+			}
+		}else{
+			return;
+		}
+	}
+}
+</Code>
+    <Description>Convert String to long value.
+Read data line by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+    <Includes num="5"/>
+  </FilterInfo>
+  <FilterInfo>
+    <Name>StringToPointer</Name>
+    <NameInC>StrToPtrConverter_ryu</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void StrToPtrConverter_ryu(struct order *order){
+	int i = 0;
+	char buff[1024];
+	for(i=1;i&lt;=8;i++){
+		pse_stream *in = get_read_Stream(order,i);
+		pse_stream *out = get_write_Stream(order,i);
+		if(in!=NULL&amp;&amp;out!=NULL){
+			while(read_ln_ryu(in,buff,1024)&gt;0){
+				write_Ptr(out,(void *)atol(buff));
+			}
+		}else{
+			return;
+		}
+	}
+}</Code>
+    <Description>Convert String to pointer value.
+Read data line by line.
+accept 8 input streams and 8 output streams.(Not concurrent)</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>Converter</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+    <Includes num="5"/>
+  </FilterInfo>
+</ryuLib>

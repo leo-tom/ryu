@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>FilePermission</Name>
+    <NameInC>filePermission_ryu_entry</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void filePermission_ryu_entry(struct order *order){
+    pse_stream *in,*out;
+    char *buff;
+    int i,result;
+    mode_t mode;
+    struct stat fstat;
+    for(i=1;i&lt;=8;i++){
+        in = get_read_stream(order,i);
+        out = get_write_stream(order,i);
+        if(in==NULL||out==NULL){
+            return;
+        }
+        while((buff = read_line(order,in))!=NULL){
+            if(stat(buff,&amp;fstat)){
+                write_int(out,0);
+            }else{
+                result = 0;
+                mode = fstat.st_mode;
+                result |= mode &amp; S_IRUSR ? S_IRUSR : 0;
+                result |= mode &amp; S_IWUSR ? S_IWUSR : 0;
+                result |= mode &amp; S_IXUSR ? S_IXUSR : 0;
+                result |= mode &amp; S_IRGRP ? S_IRGRP : 0;
+                result |= mode &amp; S_IWGRP ? S_IWGRP : 0;
+                result |= mode &amp; S_IXGRP ? S_IXGRP : 0;
+                result |= mode &amp; S_IROTH ? S_IROTH : 0;
+                result |= mode &amp; S_IWOTH ? S_IWOTH : 0;
+                result |= mode &amp; S_IXOTH ? S_IXOTH : 0;
+                write_int(out,result);
+            }
+        }
+    }
+}
+</Code>
+    <Description>Get name of file. Output integer which represent permission of file.</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>System</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+    <Includes num="5"/>
+    <Includes num="6"/>
+    <Includes num="7"/>
+    <Includes num="8"/>
+    <Includes num="9"/>
+    <Includes num="10"/>
+    <Includes num="11"/>
+  </FilterInfo>
+</ryuLib>

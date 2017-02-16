@@ -1,0 +1,3375 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>RyuAwk</Name>
+    <NameInC>_ryu_awk_entry</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>
+#ifndef __RYU_SC_H__
+#define __RYU_SC_H__
+
+/*enable debug mode*/
+#define _RYU_SC_DEBUG_
+
+#include &lt;stdio.h&gt;
+#include &lt;ctype.h&gt;
+#include &lt;string.h&gt;
+#include &lt;regex.h&gt;
+
+#ifndef NAN
+/*Used to represent not a number*/
+/*This filter is only for machine that support IEEE floating point.*/
+#define NAN (0.0f / 0.0f)
+#endif
+
+#define RYU_SC_BEGIN  "BEGIN"
+#define RYU_SC_END    "END"
+#define RYU_SC_FOR    "FOR"
+#define RYU_SC_IF     "IF"
+#define RYU_SC_ELSEIF "ELSEIF"
+#define RYU_SC_ELSE   "ELSE"
+#define RYU_SC_WHILE  "WHILE"
+#define RYU_SC_PRINT  "PRINT"
+#define RYU_SC_GOTO   "GOTO"
+#define RYU_SC_FUNC   "FUNC"
+
+const char RYU_SC_KEY_BEGIN[] = "BEGIN";
+const char RYU_SC_KEY_END[] = "END";
+const char RYU_SC_KEY_FOR[] = "for";
+const char RYU_SC_KEY_WHILE[] = "while";
+const char RYU_SC_KEY_IF[] = "if";
+const char RYU_SC_KEY_ELSE[] = "else";
+const char RYU_SC_KEY_FUNC[] = "function";
+const char RYU_SC_KEY_PRINT[] = "print";
+const char RYU_SC_KEY_RETURN[] = "return";
+const char RYU_SC_KEY_BREAK[] = " break";
+
+#define RYU_SC_TYPE_EOF    		(1)
+#define RYU_SC_TYPE_BEGIN  		(2)
+#define RYU_SC_TYPE_END    		(3)
+#define RYU_SC_TYPE_FOR    		(4)
+#define RYU_SC_TYPE_IF     		(5)
+#define RYU_SC_TYPE_BLOCK  		(6)
+#define RYU_SC_TYPE_CALC   		(7)
+#define RYU_SC_TYPE_ELSE   		(8)
+#define RYU_SC_TYPE_ELIF   		(9)
+#define RYU_SC_TYPE_NON    		(10)
+#define RYU_SC_TYPE_WHILE  		(11)
+#define RYU_SC_TYPE_PRINT  		(12)
+#define RYU_SC_TYPE_REG    		(13)
+#define RYU_SC_TYPE_PARSED_CALC (14)
+#define RYU_SC_TYPE_ROOT_BLOCK  (15)
+#define RYU_SC_TYPE_RETURN      (16)
+#define RYU_SC_TYPE_BREAK       (17)
+
+const char const *RYU_DEBUG_INFO[] = {
+		"EOF",
+		"BEGIN",
+		"END",
+		"FOR",
+		"IF",
+		"BLOCK",
+		"CALC",
+		"ELSE",
+		"ELIF",
+		"NON",
+		"WHILE",
+		"PRINT",
+		"REG",
+		"PARSED CALC",
+		"ROOT BLOCK",
+		"RETURN",
+		"BREAK"
+};
+
+#define rawkerr(awk,str) fprintf(stderr, "At %s\nLine:%d %s\n",__FUNCTION__,awk-&gt;current_line_num,str )
+
+
+#define RYU_SC_VALIBLE_STR   (1)
+#define RYU_SC_VALIBLE_DVAL  (2)
+#define RYU_SC_VALINLE_ARRAY (3)
+
+typedef struct _ryu_sc_valiable{
+	char *name;
+	char type;
+	union{
+		char *pval;
+		double dval;
+	}value;
+	struct _ryu_sc_valiable *left;
+	struct _ryu_sc_valiable *right;
+	void *awk;
+}_valiable;
+#define RYU_SC_FUNC_TYPE_REAL 	 (1)
+#define RYU_SC_FUNC_TYPE_NONREAL (2)
+typedef struct _ryu_sc_1st_parse{
+	union{
+		char *pval;
+		char cval;
+	}value;
+	char is_pval;
+    int linenum;
+	struct _ryu_sc_1st_parse *next;
+	struct _ryu_sc_1st_parse *last;
+}s_ele;
+typedef struct _ryu_sc_2nd_parse{
+    char type;
+	s_ele *todo;
+	unsigned char bsize;
+	unsigned char bIndex;
+	struct _ryu_sc_2nd_parse **branches;
+	struct _ryu_sc_2nd_parse *next;
+}_element;
+typedef struct _ryu_sc_func{
+	char *name;
+	char type;
+	char index;
+	char size;
+	_element *exec;
+	char **defArg;
+	struct _ryu_sc_func *next;
+}_func;
+#define RYU_SC_CALC_TYPE_VALIABLE  (1)
+#define RYU_SC_CALC_TYPE_STR  	   (2)
+#define RYU_SC_CALC_TYPE_SKEYWORD  (2)
+#define RYU_SC_CALC_TYPE_DVAL      (3)
+#define RYU_SC_CALC_TYPE_CHAR      (4)
+#define RYU_SC_CALC_TYPE_STRVAL    (5)
+#define RYU_SC_CALC_TYPE_FUNC      (6)
+#define RYU_SC_CALC_TYPE_REGEX     (7)
+#define RYU_SC_CALC_TYPE_ARRAY     (8)
+typedef struct calc_element_structure{
+	union{
+		char *sval;
+		double dval;
+		char cval;
+	}val;
+	union{
+		s_ele *sele;
+	}option;
+	char type;
+	struct calc_element_structure *next;
+	struct calc_element_structure *last;
+}_cele;
+
+struct _farg{
+	char *name;
+	_valiable *val;
+	struct _farg *next;
+};
+#define RYU_SC_FLAG_BEGIN 	            (1 &lt;&lt; 1)
+#define RYU_SC_FLAG_END                 (1 &lt;&lt; 2)
+#define RYU_SC_FLAG_FUNC_RETURNED_STR	(1 &lt;&lt; 3)
+#define RYU_SC_FLAG_COMPILING_ROOT      (1 &lt;&lt; 4)
+#define RYU_SC_FLAG_BREAK               (1 &lt;&lt; 5)
+#define RYU_SC_FLAG_RETURN              (1 &lt;&lt; 6)
+#define RYU_SC_FLAG_BEGIN_END           (1 &lt;&lt; 7)
+#define RYU_SC_FLAG_END_END             (1 &lt;&lt; 8)
+
+#define RYU_SC_STACK_SIZE    (64)
+
+typedef struct _ryu_script_info{
+	int reading_i;
+	_valiable *line;
+	_valiable *valiables;
+	double result;
+	_func *funcs;
+    _element *elements;
+    int flags;
+	void *order; /*pointer for ryu order*/
+	pse_stream *program_st;
+/*those values will be used during compile time*/
+	s_ele *s_ele_head;
+	int current_line_num;
+	int rget_stack_i;
+	char rget_stack[8];
+	int stack_index;
+	struct _farg *stack[RYU_SC_STACK_SIZE];
+}_awk;
+
+extern char * _get_string_cele(_awk *awk,_cele *ele);
+extern int _check_flag(_awk *awk,int val);
+extern int _is_function_name(_awk *awk,const char *str);
+extern _element * _get_branch_at(_element *ele,int index);
+extern int _do_begin(_awk *awk,_element *executing);
+extern int _do_end(_awk *awk,_element *executing);
+extern int _do_func_call(_awk *awk,_cele *cele);
+extern _cele * _append_cele(_cele *head);
+extern void _set_ptr_cele(_cele *ele,int type,char *ptr);
+extern void _set_char_cele(_cele *ele,char c);
+extern void _set_dval_cele(_cele *ele,int type,double val);
+extern _cele * _parse_cele(_awk *awk,_element *executing);
+extern _cele * _get_left(_cele *ele);
+extern _cele * _get_right(_cele *ele);
+extern double _get_dval_cele(_awk *awk,_cele *ele);
+extern _cele *_duplicate_cele_chain(_cele *ele);
+extern void _free_cele_chain(_cele *ele);
+extern double _do_parsed_calc(_awk *awk,_cele *ele);
+extern int _do_calc(_awk *awk,_element *executing);
+extern int _do_print(_awk *awk,_element *executing);
+extern int _ryuexecute(_awk *awk,_element *executing);
+extern char * ryustrdup(_awk *awk,const char *str);
+extern _valiable * _mk_valiable(_awk *awk,const char *str);
+extern _valiable * _set_str_value(_valiable *val,const char *str);
+extern _valiable * _set_valiable(_awk *awk,const char *name,const char *val);
+extern _valiable * _get_valiable(_awk *awk,const char *name);
+extern double _get_dval_from_valiable(_valiable *val);
+extern int _get_intval_from_valiable(_valiable *val);
+extern char *_get_sval_from_valiable(_valiable *val);
+extern _valiable * _set_dval_valiable(_valiable *val , double dval);
+extern int _rgetc(_awk *awk,pse_stream *stream);
+extern void _rungetc(_awk *awk,pse_stream *stream,char c);
+extern void _set_char(s_ele *ele,char c);
+extern void _set_str(s_ele *ele,char *str);
+extern s_ele * _append_s_ele(_awk *awk,s_ele *ele);
+extern int _parse_str(_awk *awk,pse_stream *stream);
+extern void rparsederr(s_ele *element,char *str);
+extern char * _ryu_strdup(_awk *awk,const char *val);
+extern s_ele * _duplicate_sele(_awk *awk,s_ele *appending);
+extern s_ele * _append_todo(_awk *awk,_element *ele,s_ele *appending);
+extern _element * _mk_element(_awk *awk,int type);
+extern void _append_branch(_awk *awk,_element *target,_element *appending);
+extern void _append_generated(_element **generated,_element *val);
+extern s_ele * _get_next_sele(_awk *awk);
+extern s_ele * _check_next_sele(_awk *awk);
+extern int _is_calc_able_ele(s_ele *ele);
+extern _element * _mk_calc_ele(_awk *awk);
+extern _element * _parse_parsed(_awk *awk);
+extern void _tree_view_maker(_element *ele,int depth);
+extern int _ryucompile(_awk *awk,pse_stream *st);
+extern void _ryu_awk_entry(struct order *order);
+extern _awk * _init_awk(struct order *order);
+extern _valiable * _get_record(_awk *awk,int index);
+extern void _free_record(_awk *awk);
+extern _valiable * _mk_variable_without_ryumalloc(char *str);
+extern void _set_record(_awk *awk);
+extern _valiable * _get_argument(struct _farg *args,int index);
+extern int _append_arg(struct _farg **arg,char *name,_valiable *val);
+extern int _call_Built_in_func(_awk *awk,s_ele *sele,int index);
+extern long _get_long_from_sele(s_ele *ele);
+extern _valiable * _get_variable_from_array(_awk *awk,_valiable *vari,char *name);
+extern _valiable * _set_valiable_to_array(_awk *awk,_valiable *vari,char *name);
+
+extern double B_atan2(_awk *awk,struct _farg *ele);
+extern double B_close(_awk *awk,struct _farg *ele);
+extern double B_cos(_awk *awk,struct _farg *ele);
+extern double B_exp(_awk *awk,struct _farg *ele);
+extern double B_gsub(_awk *awk,struct _farg *ele);
+extern double B_index(_awk *awk,struct _farg *ele);
+extern double B_int(_awk *awk,struct _farg *ele);
+extern double B_length(_awk *awk,struct _farg *ele);
+extern double B_log(_awk *awk,struct _farg *ele);
+extern double B_match(_awk *awk,struct _farg *ele);
+extern double B_printf(_awk *awk,struct _farg *ele);
+extern double B_rand(_awk *awk,struct _farg *ele);
+extern double B_sin(_awk *awk,struct _farg *ele);
+extern double B_split(_awk *awk,struct _farg *ele);
+extern double B_sprintf(_awk *awk,struct _farg *ele);
+extern double B_sqrt(_awk *awk,struct _farg *ele);
+extern double B_srand(_awk *awk,struct _farg *ele);
+extern double B_sub(_awk *awk,struct _farg *ele);
+extern double B_substr(_awk *awk,struct _farg *ele);
+extern double B_system(_awk *awk,struct _farg *ele);
+extern double B_tolower(_awk *awk,struct _farg *ele);
+extern double B_toupper(_awk *awk,struct _farg *ele);
+extern double B_fprintf(_awk *awk,struct _farg *ele);
+extern void _copy_valiable(_valiable *to,_valiable *from);
+
+#define RYU_BUILTIN_FUNC_COUNT (23)
+/*binary search*/
+const char const *RYU_BUILTIN_FUNCS[] = {
+		"atan2",
+		"close",
+		"cos",
+		"exp",
+		"fprintf",
+		"gsub",
+		"index",
+		"int",
+		"length",
+		"log",
+		"match",
+		"printf",
+		"rand",
+		"sin",
+		"split",
+		"sprintf",
+		"sqrt",
+		"srand",
+		"sub",
+		"substr",
+		"system",
+		"tolower",
+		"toupper"
+};
+
+const void const * RYU_BUILTIN_FUNCS_PTR[] = {
+		(void *)B_atan2,
+		(void *)B_close,
+		(void *)B_cos,
+		(void *)B_exp,
+		(void *)B_fprintf,
+		(void *)B_gsub,
+		(void *)B_index,
+		(void *)B_int,
+		(void *)B_length,
+		(void *)B_log,
+		(void *)B_match,
+		(void *)B_printf,
+		(void *)B_rand,
+		(void *)B_sin,
+		(void *)B_split,
+		(void *)B_sprintf,
+		(void *)B_sqrt,
+		(void *)B_srand,
+		(void *)B_sub,
+		(void *)B_substr,
+		(void *)B_system,
+		(void *)B_tolower,
+		(void *)B_toupper
+};
+
+
+#endif
+#define b_err(str) fprintf(stderr,"[%s],%s\n",__func__,str)
+int _awk_format(char *buff,char *format,struct _farg *arg)
+{
+	int i = 0;
+	int index = 0;
+	int arg_index = 0;
+	int flag;
+	char tmp[256];
+	char tmpBuff[256];
+	char type;
+	_valiable *vari,*vari2;
+	*buff = 0;
+	if(format == NULL){
+		return 0;
+	}
+	/*make length of str 0*/
+	*buff = 0;
+	while(format[i] != 0){
+		flag = 0;
+		if(format[i]=='%'){
+			if(format[i+1] == '%'){
+				strcat(buff,"%");
+				i+=2;
+				continue;
+			}
+			index = 0;
+			tmp[index++] = format[i];
+			i++;
+			while(1){
+				if(isdigit(format[i])){
+					tmp[index++] = format[i];
+				}else if(format[i] == '.'){
+					tmp[index++] = format[i];
+				}else if(isalpha(format[i])){
+					type = format[i];
+					tmp[index++] = type;
+					break;
+				}else if(format[i] == '-'){
+					tmp[index++] = format[i];
+				}else if(format[i] == '*'){
+					flag = 1;
+					tmp[index++] = format[i];
+				}else{
+					fprintf(stderr,"Unknown char for printf style format [%c]",format[i]);
+					tmp[index++] = format[i];
+				}
+				i++;
+			}
+			tmp[index] = 0;
+			i++;
+			vari = _get_argument(arg,arg_index++);
+			if(vari == NULL){
+				fprintf(stderr,"Invalid format\nToo few argument\n");
+				return 1;
+			}
+			if(flag){
+				vari2 = _get_argument(arg,arg_index++);
+				if(vari2==NULL){
+					fprintf(stderr,"Invalid format\nToo few argument\n");
+					return 1;
+				}
+				switch(type){
+				case 'c':
+					if(vari-&gt;type == RYU_SC_VALIBLE_STR){
+						sprintf(tmpBuff,tmp,_get_intval_from_valiable(vari),vari2-&gt;value.pval[0]);
+					}else{
+						sprintf(tmpBuff,tmp,_get_intval_from_valiable(vari),(char)vari2-&gt;value.dval);
+					}
+					break;
+				case 'd':
+				case 'i':
+				case 'u':
+				case 'x':
+				case 'X':
+				case 'o':
+					sprintf(tmpBuff,tmp,_get_intval_from_valiable(vari),_get_intval_from_valiable(vari2));
+					break;
+				case 'e':
+				case 'E':
+				case 'f':
+				case 'g':
+				case 'G':
+					sprintf(tmpBuff,tmp,_get_intval_from_valiable(vari),_get_dval_from_valiable(vari2));
+					break;
+				case 's':
+					sprintf(tmpBuff,tmp,_get_intval_from_valiable(vari),_get_sval_from_valiable(vari2));
+					break;
+				default:
+					fprintf(stderr,"Invalid format.\nUnknown char %c",type);
+					return 1;
+				}
+			}else{
+				switch(type){
+				case 'c':
+					if(vari-&gt;type == RYU_SC_VALIBLE_STR){
+						sprintf(tmpBuff,tmp,vari-&gt;value.pval[0]);
+					}else{
+						sprintf(tmpBuff,tmp,(char)vari-&gt;value.dval);
+					}
+					break;
+				case 'd':
+				case 'i':
+				case 'u':
+				case 'x':
+				case 'X':
+				case 'o':
+					sprintf(tmpBuff,tmp,_get_intval_from_valiable(vari));
+					break;
+				case 'e':
+				case 'E':
+				case 'f':
+				case 'g':
+				case 'G':
+					sprintf(tmpBuff,tmp,_get_dval_from_valiable(vari));
+					break;
+				case 's':
+					sprintf(tmpBuff,tmp,_get_sval_from_valiable(vari));
+					break;
+				default:
+					fprintf(stderr,"Invalid format.\nUnknown char %c",type);
+					return 1;
+				}
+				strcat(buff,tmpBuff);
+			}
+		}else if(format[i] == '\\'){
+			if(format[i+1] == '\"'){
+				strcat(buff,"\\\"");
+			}else if(format[i+1] == '\''){
+				strcat(buff,"\\\'");
+			}else if(format[i+1] == '\\'){
+				strcat(buff,"\\\\");
+			}else if(format[i+1] == 'n'){
+				strcat(buff,"\n");
+			}else if(format[i+1] == 't'){
+				strcat(buff,"\t");
+			}else if(format[i+1] == 'a'){
+				strcat(buff,"\a");
+			}else if(format[i+1] == 'f'){
+				strcat(buff,"\f");
+			}else if(format[i+1] == 'b'){
+				strcat(buff,"\b");
+			}else if(format[i+1] == 'r'){
+				strcat(buff,"\r");
+			}else if(format[i+1] == 'v'){
+				strcat(buff,"\v");
+			}else if(format[i+1] == 'x'){
+				tmp[0] = '\\';
+				tmp[1] = 'x';
+				index = 2;
+				i+=2;
+				while(isdigit(format[i])){
+					tmp[index++] = format[i++];
+				}
+				tmp[index] = 0;
+				sprintf(tmpBuff,tmp);
+				strcat(buff,tmpBuff);
+			}else if(isdigit(format[i+1])){
+				tmp[0] = '\\';
+				index = 1;
+				i+=1;
+				while(isdigit(format[i])){
+					tmp[index++] = format[i++];
+				}
+				tmp[index] = 0;
+				sprintf(tmpBuff,tmp);
+				strcat(buff,tmpBuff);
+			}else{
+				fprintf(stderr,"Invalid format\n");
+				return 1;
+			}
+			i++;
+		}else{
+			index = strlen(buff);
+			buff[index] = format[i++];
+			buff[index+1] = 0;
+		}
+	}
+	return 0;
+}
+double B_atan2(_awk *awk,struct _farg *ele)
+{
+
+}
+double B_close(_awk *awk,struct _farg *ele)
+{
+
+}
+double B_cos(_awk *awk,struct _farg *ele)
+{
+
+}
+double B_exp(_awk *awk,struct _farg *ele)
+{
+
+}
+double B_fprintf(_awk *awk,struct _farg *ele)
+{
+	_valiable *to_v = _get_argument(ele,0);
+	if(to_v == NULL){
+		b_err("Output stream is not given");
+		return NAN;
+	}
+	int to = _get_dval_from_valiable(to_v);
+	pse_stream *out = get_write_stream(awk-&gt;order,to);
+	if(out == NULL){
+		b_err("Invalid index of output stream");
+		return NAN;
+	}
+	char *buff = malloc(4096);
+	if(_awk_format(buff,_get_sval_from_valiable(_get_argument(ele,1)),ele-&gt;next-&gt;next)){
+		free(buff);
+		return NAN;
+	}
+	write_str_to_stream(out,buff);
+	free(buff);
+	return 0;
+}
+double B_gsub(_awk *awk,struct _farg *ele)
+{
+
+}
+double B_index(_awk *awk,struct _farg *ele)
+{
+
+}
+double B_int(_awk *awk,struct _farg *ele)
+{
+
+}
+double B_length(_awk *awk,struct _farg *ele)
+{
+
+}
+double B_log(_awk *awk,struct _farg *ele)
+{
+
+}
+double B_match(_awk *awk,struct _farg *ele)
+{
+
+}
+
+double B_printf(_awk *awk,struct _farg *ele)
+{
+	pse_stream *out = get_write_stream(awk-&gt;order,1);
+	if(out == NULL){
+		b_err("Output stream is not given");
+		return 0;
+	}
+	char *buff = malloc(4096);
+	if(_awk_format(buff,_get_sval_from_valiable(_get_argument(ele,0)),ele-&gt;next)){
+		free(buff);
+		return NAN;
+	}
+	write_str_to_stream(out,buff);
+	free(buff);
+	return 0;
+}
+double B_rand(_awk *awk,struct _farg *ele)
+{
+
+}
+double B_sin(_awk *awk,struct _farg *ele)
+{
+
+}
+double B_split(_awk *awk,struct _farg *ele)
+{
+
+}
+double B_sprintf(_awk *awk,struct _farg *ele)
+{
+	_valiable *buff = _get_argument(ele,0);
+	_valiable *patern = _get_argument(ele,1);
+	char *value = malloc(4096);
+	if(value == NULL){
+		b_err("Allocation failed");
+		return NAN;
+	}
+	if(_awk_format(value,_get_sval_from_valiable(patern),ele-&gt;next-&gt;next)){
+		b_err("Invalid formatting");
+		free(value);
+		return NAN;
+	}
+	_set_str_value(buff,value);
+	free(value);
+	return 0;
+}
+double B_sqrt(_awk *awk,struct _farg *ele)
+{
+
+}
+double B_srand(_awk *awk,struct _farg *ele)
+{
+
+}
+double B_sub(_awk *awk,struct _farg *ele)
+{
+
+}
+double B_substr(_awk *awk,struct _farg *ele)
+{
+
+}
+double B_system(_awk *awk,struct _farg *ele)
+{
+
+}
+double B_tolower(_awk *awk,struct _farg *ele)
+{
+
+}
+double B_toupper(_awk *awk,struct _farg *ele)
+{
+
+}
+
+void rparsederr(s_ele *element,char *str){
+	if(element == NULL){
+		fprintf(stderr, "%s\n", str);
+	}else if(element-&gt;is_pval){
+		fprintf(stderr, "Line:%d\n String that made error: \"%s\"\n %s\n",element-&gt;linenum, element-&gt;value.pval,str);
+	}else{
+		fprintf(stderr, "Line:%d\n Char that made error: \'%c\'\n %s\n",element-&gt;linenum, element-&gt;value.cval,str);
+	}
+}
+
+
+char * _ryu_strdup(_awk *awk,const char *val){
+    if(val == NULL || awk == NULL){
+        fprintf(stderr, "[_ryu_strdup] got null ptr\n");
+        return NULL;
+    }
+    char *retval = ryumalloc(awk-&gt;order,strlen(val)+1);
+    if(retval == NULL){
+        fprintf(stderr, "[_ryu_strdup]ryumalloc failed\n");
+        return NULL;
+    }
+    strcpy(retval,val);
+    return retval;
+}
+s_ele * _duplicate_sele(_awk *awk,s_ele *appending){
+    s_ele *val = ryumalloc(awk-&gt;order,sizeof(s_ele));
+    char *ptr;
+    if(val == NULL){
+        rawkerr(awk,"Allocation failed");
+        return NULL;
+    }
+    memcpy(val,appending,sizeof(s_ele));
+    val-&gt;next = NULL;
+    if(val-&gt;is_pval){
+    	ptr = ryumalloc(awk-&gt;order,strlen(val-&gt;value.pval)+1);
+    	if(ptr == NULL)
+    		return NULL;
+    	strcpy(ptr,val-&gt;value.pval);
+    }
+    return val;
+}
+s_ele * _append_todo(_awk *awk,_element *ele,s_ele *appending){
+    s_ele *val = _duplicate_sele(awk,appending);
+    s_ele *tmp;
+    if(val == NULL){
+        return NULL;
+    }
+    if(ele-&gt;todo == NULL){
+        ele-&gt;todo = val;
+    }else{
+        tmp = ele-&gt;todo;
+        while(tmp-&gt;next != NULL){
+            tmp = tmp-&gt;next;
+        }
+        tmp-&gt;next = val;
+    }
+    return val;
+}
+_element * _mk_element(_awk *awk,int type){
+    _element *generating = (_element *)ryucalloc(awk-&gt;order,1,sizeof(_element));
+    if(generating == NULL){
+        rawkerr(awk,"Allocation error");
+        return NULL;
+    }
+    if(awk-&gt;elements == NULL){
+        awk-&gt;elements = generating;
+    }
+    generating-&gt;type = type;
+#ifdef _RYU_SC_DEBUG_
+    fprintf(stderr,"%s was generated\n",RYU_DEBUG_INFO[type-1]);
+#endif
+    return generating;
+}
+void _append_branch(_awk *awk,_element *target,_element *appending){
+	_element **tmp;
+	int i;
+    if(target-&gt;branches == NULL){
+    	target-&gt;branches = (_element **)ryucalloc(awk-&gt;order,4,sizeof(_element *));
+    	target-&gt;bIndex = 1;
+    	target-&gt;bsize = 4;
+        target-&gt;branches[0] = appending;
+    }
+    else{
+    	if(target-&gt;bIndex &gt;= target-&gt;bsize){
+    		tmp = target-&gt;branches;
+    		target-&gt;branches = (_element **)ryucalloc(awk-&gt;order,target-&gt;bsize += 4,sizeof(_element *));
+    		for(i=0;i&lt;target-&gt;bIndex;i++){
+    			target-&gt;branches[i] = tmp[i];
+    		}
+    		target-&gt;branches[target-&gt;bIndex++] = appending;
+    	}else{
+    		target-&gt;branches[target-&gt;bIndex++] = appending;
+    	}
+    }
+}
+void _append_generated(_element **generated,_element *val){
+	_element *tmp;
+    if(*generated == NULL){
+        *generated = val;
+    }else{
+    	tmp = *generated;
+        while(tmp-&gt;next != NULL){
+            tmp = tmp-&gt;next;
+        }
+        tmp-&gt;next = val;
+    }
+}
+s_ele * _get_next_sele(_awk *awk){
+    s_ele *val = awk-&gt;s_ele_head;
+    if(val == NULL)
+    	return NULL;
+    awk-&gt;s_ele_head = val-&gt;next;
+    return val-&gt;next;
+}
+s_ele * _check_next_sele(_awk *awk){
+    return awk-&gt;s_ele_head-&gt;next;
+}
+int _is_calc_able_ele(s_ele *ele){
+	if(ele == NULL){
+		return 0;
+	}
+	register char *ptr;
+	if(ele-&gt;is_pval){
+		ptr = ele-&gt;value.pval;
+		if(!strcmp(ptr,RYU_SC_KEY_BEGIN)
+			|| !strcmp(ptr,RYU_SC_KEY_ELSE)
+			|| !strcmp(ptr,RYU_SC_KEY_END)
+			|| !strcmp(ptr,RYU_SC_KEY_FOR)
+			|| !strcmp(ptr,RYU_SC_KEY_IF)
+			|| !strcmp(ptr,RYU_SC_KEY_WHILE)
+			|| !strcmp(ptr,RYU_SC_KEY_FUNC)
+		)
+			return 0;
+	}else{
+		switch(ele-&gt;value.cval){
+			case '}' :
+			case '{' :
+				return 0;
+			case ';' :
+			case '\n' :
+				return 0;
+			break;
+		}
+	}
+	return 1;
+}
+_element * _mk_calc_ele(_awk *awk){
+	s_ele *current = _check_next_sele(awk);
+	int n;
+	int cou = 0;
+	if(!_is_calc_able_ele(current)){
+		rparsederr(current,"Invalid calculation");
+		return NULL;
+	}
+	_element *ele;
+	if((ele=_mk_element(awk,RYU_SC_TYPE_CALC))==NULL){
+		return NULL;
+	}
+	while(_is_calc_able_ele(current)){
+		if(!current-&gt;is_pval &amp;&amp; current-&gt;value.cval == '('){
+			cou++;
+		}else if(!current-&gt;is_pval &amp;&amp; current-&gt;value.cval == ')'){
+			cou--;
+		}
+		if(cou &lt; 0){
+			n = 0;
+			break;
+		}
+		if(!current-&gt;is_pval &amp;&amp; current-&gt;value.cval == '\\'){
+			/* get \\*/
+			current = _get_next_sele(awk);
+			/* get \n*/
+			current = _get_next_sele(awk);
+			/* check next*/
+			current = _check_next_sele(awk);
+		}
+		current = _get_next_sele(awk);
+		if(_append_todo(awk,ele,current)== NULL){
+			return NULL;
+		}
+		current = _check_next_sele(awk);
+	}
+	if(!current-&gt;is_pval){
+		if(current-&gt;value.cval ==';' || current-&gt;value.cval ==')' || current-&gt;value.cval =='\n'){
+			_get_next_sele(awk);
+		}else if(current-&gt;value.cval == '{'){
+			/*Okay*/
+		}else{
+			rparsederr(current,"Invalid calculation");
+		}
+	}else{
+		rparsederr(current,"Invalid calculation");
+	}
+	return ele;
+}
+_func * _mk_func(_awk *awk,char *name){
+	_func *func = ryucalloc(awk-&gt;order,1,sizeof(_func));
+	func-&gt;name = ryustrdup(awk,name);
+	return func;
+}
+void _add__arg_to_variable(_awk *awk,_func *func,char *str){
+	if(func-&gt;size == 0){
+		func-&gt;size = 4;
+		func-&gt;defArg = (char **)ryumalloc(awk-&gt;order,4*sizeof(char *));
+		func-&gt;defArg[func-&gt;index++] = ryustrdup(awk,str);
+	}else{
+		if(func-&gt;size &gt; func-&gt;index){
+			func-&gt;defArg[func-&gt;index++] = ryustrdup(awk,str);
+		}else{
+			func-&gt;size += 4;
+			func-&gt;defArg = (char **)ryurealloc(awk-&gt;order,func-&gt;defArg,func-&gt;size * sizeof(char *));
+			func-&gt;defArg[func-&gt;index++] = ryustrdup(awk,str);
+		}
+	}
+}
+void _add_func(_awk *awk,_func *func){
+	if(awk-&gt;funcs == NULL){
+		awk-&gt;funcs = func;
+	}else{
+		func-&gt;next = awk-&gt;funcs;
+		awk-&gt;funcs = func;
+	}
+}
+_element * _parse_parsed(_awk *awk){
+    _element *generating = NULL;
+    _element *generated = NULL;
+    _element *block_ele;
+    _element *tmp;
+    _element *tmp2;
+    s_ele *current;
+    current = _get_next_sele(awk);
+    s_ele *stmp;
+    _func *func;
+    int cou;
+    char is_block = 0;
+    char compiling_root = 0;
+    int branch_cou = 0;
+    while(!current-&gt;is_pval&amp;&amp;current-&gt;value.cval == '\n'){
+    	current = _get_next_sele(awk);
+    }
+    if(_check_flag(awk,RYU_SC_FLAG_COMPILING_ROOT)){
+    	awk-&gt;flags &amp;= ~RYU_SC_FLAG_COMPILING_ROOT;
+    	compiling_root = 1;
+    }
+    if(current == NULL){
+        generated = _mk_element(awk,RYU_SC_TYPE_EOF);
+        goto done;
+    }
+    if(!current-&gt;is_pval &amp;&amp; current-&gt;value.cval == '{'){
+        if((generating = _mk_element(awk,RYU_SC_TYPE_BLOCK))==NULL){
+            return NULL;
+        }
+        block_ele = generating;
+        is_block = 1;
+        current = _get_next_sele(awk);
+    }else if(!current-&gt;is_pval &amp;&amp; current-&gt;value.cval == '('){
+        branch_cou = 1;
+        current = _get_next_sele(awk);
+    }
+    while(1){
+        if(current-&gt;is_pval){
+            if(!strcmp(current-&gt;value.pval,RYU_SC_KEY_BEGIN)){
+                if((generating = _mk_element(awk,RYU_SC_TYPE_BEGIN))==NULL){
+                    return NULL;
+                }
+                _append_generated(&amp;generated,generating);
+                if((tmp = _parse_parsed(awk))==NULL){
+                    return NULL;
+                }
+                _append_branch(awk,generating,tmp);
+            }else if(!strcmp(current-&gt;value.pval,RYU_SC_KEY_IF)){
+                stmp = _get_next_sele(awk);
+                if(!stmp-&gt;is_pval &amp;&amp; stmp-&gt;value.cval != '('){
+                    fprintf(stderr, "Expected \'(\'\n");
+                    return NULL;
+                }
+                if((generating = _mk_element(awk,RYU_SC_TYPE_IF))==NULL){
+                    return NULL;
+                }
+                _append_generated(&amp;generated,generating);
+                /*condition*/
+                if((tmp = _parse_parsed(awk))==NULL){
+                    return NULL;
+                }
+                _append_branch(awk,generating,tmp);
+                /*inside*/
+                if((tmp = _parse_parsed(awk))==NULL){
+                	return NULL;
+                }
+                _append_branch(awk,generating,tmp);
+                awk-&gt;s_ele_head = awk-&gt;s_ele_head-&gt;last;
+            }else if(!strcmp(current-&gt;value.pval,RYU_SC_KEY_ELSE)){
+                tmp = generating;
+                stmp = _check_next_sele(awk);
+                if(stmp-&gt;is_pval &amp;&amp; !strcmp(stmp-&gt;value.pval,RYU_SC_KEY_IF )){
+                    /*else if*/
+                    _get_next_sele(awk);
+                    stmp = _check_next_sele(awk);
+                    if(stmp-&gt;is_pval &amp;&amp; stmp-&gt;value.cval == '('){
+                        rparsederr(stmp,"Expected \'(\'");
+                        return NULL;
+                    }
+                    if((generating=_mk_element(awk,RYU_SC_TYPE_ELIF))==NULL){
+                        rparsederr(NULL,"Allocation Failed");
+                        return NULL;
+                    }
+                    /*appending to former if or else if*/
+                    _append_branch(awk,tmp,generating);
+                    /*condition*/
+                    if((tmp=_parse_parsed(awk))==NULL){
+                        rparsederr(NULL,"Parsing else if failed");
+                        return NULL;
+                    }
+                    _append_branch(awk,generating,tmp);
+                    /*inside of else if*/
+                    if((tmp = _parse_parsed(awk))==NULL){
+                        return NULL;
+                    }
+                    _append_branch(awk,generating,tmp);
+                    awk-&gt;s_ele_head = awk-&gt;s_ele_head-&gt;last;
+                }else{
+                	if((generating = _mk_element(awk,RYU_SC_TYPE_ELSE))==NULL){
+                		return NULL;
+                	}
+                	_append_branch(awk,tmp,generating);
+                	/*inside of else*/
+                	if((tmp=_parse_parsed(awk))==NULL){
+                	      return NULL;
+                	}
+                	_append_branch(awk,generating,tmp);
+                	awk-&gt;s_ele_head = awk-&gt;s_ele_head-&gt;last;
+                }
+			}else if( !strcmp(current-&gt;value.pval,RYU_SC_KEY_FOR)){
+				/*making*/
+				stmp = _get_next_sele(awk);
+				if(!stmp-&gt;is_pval &amp;&amp; stmp-&gt;value.cval == '('){
+					if((generating = _mk_element(awk,RYU_SC_TYPE_FOR))==NULL){
+						return NULL;
+					}
+					_append_generated(&amp;generated,generating);
+					/*for init*/
+					if((tmp = _mk_calc_ele(awk))==NULL){
+						return NULL;
+					}
+					_append_branch(awk,generating,tmp);
+					/*for comparison*/
+					if((tmp = _mk_calc_ele(awk))==NULL){
+						return NULL;
+					}
+					_append_branch(awk,generating,tmp);
+					/*for increment*/
+					if((tmp = _mk_calc_ele(awk))==NULL){
+						return NULL;
+					}
+					_append_branch(awk,generating,tmp);
+					/*inside of for*/
+					if((tmp = _parse_parsed(awk))==NULL){
+						return NULL;
+					}
+					_append_branch(awk,generating,tmp);
+				}else{
+					rparsederr(stmp,"Expected \'(\' here");
+				}
+			}else if(!strcmp(current-&gt;value.pval,RYU_SC_KEY_FUNC)){
+				current = _get_next_sele(awk);
+				if(!current-&gt;is_pval){
+					rparsederr(current,"Name of function seems missing");
+					return NULL;
+				}
+				func = _mk_func(awk,current-&gt;value.pval);
+				current = _get_next_sele(awk);
+				while(1){
+					if(!current-&gt;is_pval &amp;&amp; current-&gt;value.cval == ')'){
+						break;
+					}
+					if(current-&gt;is_pval){
+						_add__arg_to_variable(awk,func,current-&gt;value.pval);
+					}
+					current = _get_next_sele(awk);
+				}
+				func-&gt;exec = _parse_parsed(awk);
+				if(func-&gt;exec == NULL){
+					fprintf(stderr,"Failed to parse %s\n",func-&gt;name);
+					return NULL;
+				}
+				func-&gt;type = RYU_SC_FUNC_TYPE_NONREAL;
+				_add_func(awk,func);
+			}else if(!strcmp(current-&gt;value.pval,RYU_SC_KEY_END)){
+				if((generating = _mk_element(awk,RYU_SC_TYPE_END))==NULL)
+					return NULL;
+				_append_generated(&amp;generated,generating);
+				if((tmp = _parse_parsed(awk))==NULL){
+					return NULL;
+				}
+				_append_branch(awk,generating,tmp);
+			}else if(!strcmp(current-&gt;value.pval,RYU_SC_KEY_PRINT)){
+				if((generating = _mk_element(awk,RYU_SC_TYPE_PRINT))==NULL){
+					return NULL;
+				}
+				_append_generated(&amp;generated,generating);
+				while((stmp = _get_next_sele(awk)) != NULL){
+					if(!stmp-&gt;is_pval &amp;&amp; (stmp-&gt;value.cval == '\n' || stmp-&gt;value.cval == ';')){
+						break;
+					}
+					if(!stmp-&gt;is_pval &amp;&amp; stmp-&gt;value.cval == '\\'){
+						stmp = _get_next_sele(awk);
+						if(stmp-&gt;value.cval == '\n')
+							continue;
+						else{
+							rparsederr(stmp,"Invalid \\");
+							return NULL;
+						}
+					}
+					_append_todo(awk,generating,stmp);
+				}
+			}else if(!strcmp(current-&gt;value.pval,RYU_SC_KEY_WHILE)){
+				if((generating = _mk_element(awk,RYU_SC_TYPE_WHILE))==NULL){
+					return NULL;
+				}
+				_append_generated(&amp;generated,generating);
+				if((tmp = _parse_parsed(awk))==NULL){
+					return NULL;
+				}
+				_append_branch(awk,generating,tmp);
+				//inside
+				if((tmp = _parse_parsed(awk))==NULL){
+					return NULL;
+				}
+				_append_branch(awk,generating,tmp);
+			}else if(!strcmp(current-&gt;value.pval,RYU_SC_KEY_RETURN)){
+	        	if((generating = _mk_element(awk,RYU_SC_TYPE_RETURN))==NULL){
+	        		return NULL;
+	        	}
+	        	_append_generated(&amp;generated,generating);
+	        	if((tmp = _parse_parsed(awk))==NULL){
+	        		return NULL;
+	        	}
+	        	_append_branch(awk,generating,tmp);
+			}else if(!strcmp(current-&gt;value.pval,RYU_SC_KEY_BREAK)){
+				if((generating = _mk_element(awk,RYU_SC_TYPE_BREAK)) == NULL){
+					return NULL;
+				}
+				_append_generated(&amp;generated,generating);
+			}else{
+				/*probably variable*/
+				awk-&gt;s_ele_head = current-&gt;last;
+				if((generating = _mk_calc_ele(awk))==NULL){
+					return NULL;
+				}
+				_append_generated(&amp;generated,generating);
+			}
+        }else{
+        	switch (current-&gt;value.cval) {
+        		  case '{':
+        			  awk-&gt;s_ele_head = awk-&gt;s_ele_head-&gt;last;
+        			  if((generating = _parse_parsed(awk))==NULL){
+        				  return NULL;
+        			  }
+        			  _append_generated(&amp;generated,generating);
+        			  break;
+        	      case '}':
+        	    	  if(is_block){
+        	    		  _get_next_sele(awk);
+        	    		  	  goto done;
+        	    	  }else{
+        	    		  rparsederr(current,"Invalid \'}\'.  This is not inside of a block");
+        	    		  return NULL;
+        	    	  }
+        	    	  break;
+        	      case ')':
+        	    	  branch_cou--;
+        	    	  if(branch_cou == 0)
+        	    		  goto done;
+        	    	  break;
+        	      case 'r':
+        	    	  /*regular expression*/
+        	    	  if((generating = _mk_calc_ele(awk))==NULL){
+        	    		  return NULL;
+        	    	  }
+        	    	  generating-&gt;type = RYU_SC_TYPE_CALC;
+        	    	  _append_generated(&amp;generated,generating);
+        	    	  if((tmp = _parse_parsed(awk))==NULL){
+        	    		  return NULL;
+        	    	  }
+        	    	  _append_branch(awk,generating,tmp);
+        	    	  break;
+        	      case ';':
+        	      case '\n':
+        	    	  break;
+        	      default:
+        	    	  fprintf(stderr,"Unknown char %c\n",current-&gt;value.cval);
+        	    	  /*
+        	    	  if((generating = _mk_calc_ele(awk))==NULL){
+        	    		  return NULL;
+        	    	  }
+        	    	  _append_generated(&amp;generated,generating);
+        	    	  */
+        	    	  break;
+        	}
+        }
+        if(!is_block &amp;&amp; !compiling_root)
+        	goto done;
+        current = _get_next_sele(awk);
+        if(current== NULL)
+        	goto done;
+    }
+    done:
+	  if(is_block){
+		  _append_branch(awk,block_ele,generated);
+		  generated = block_ele;
+	  }
+      if(generated == NULL){
+    	  generated = _mk_element(awk,RYU_SC_TYPE_NON);
+      }
+      return generated;
+}
+void _tree_view_maker(_element *ele,int depth){
+	if(ele == NULL)
+		return;
+	s_ele *sele = ele-&gt;todo;
+	_element *tmp;
+	char buff[32];
+	int i = 0;
+	for(;i&lt;depth;i++){
+		buff[i] = ' ';
+	}
+	buff[i] = 0;
+	fprintf(stderr,"%s|\n",buff);
+	fprintf(stderr,"%sL%s ",buff,RYU_DEBUG_INFO[ele-&gt;type -1]);
+	while(sele!=NULL){
+		if(sele-&gt;is_pval){
+			fprintf(stderr,"%s,",sele-&gt;value.pval);
+		}else{
+			fprintf(stderr,"%c,",sele-&gt;value.cval);
+		}
+		sele = sele-&gt;next;
+	}
+	fprintf(stderr,"\n");
+	i = 0;
+	if(ele-&gt;branches != NULL){
+		while(i &lt; ele-&gt;bsize &amp;&amp; ele-&gt;branches[i] != NULL){
+				_tree_view_maker(ele-&gt;branches[i],depth+1);
+				i++;
+		}
+	}
+	_tree_view_maker(ele-&gt;next,depth);
+}
+int _ryucompile(_awk *awk,pse_stream *st){
+    int n = 0;
+    if(_parse_str(awk,st)){
+        rawkerr(awk,"First stage parsing is failed");
+        return 1;
+    }
+    s_ele *current = awk-&gt;s_ele_head;
+    s_ele *tmp;
+    _element *ele;
+    _element *root_ele;
+#ifdef _RYU_SC_DEBUG_
+    while (current != NULL) {
+        if(current-&gt;is_pval){
+            n+=fprintf(stderr, "[%-10s]-&gt;",current-&gt;value.pval);
+        }else{
+            if(current-&gt;value.cval == '\n') {
+                n+=fprintf(stderr, "[%-10s]-&gt;","\\n");
+            }else{
+                n+=fprintf(stderr, "[%c         ]-&gt;",current-&gt;value.cval);
+            }
+        }
+        if(n &gt; 80){
+            fprintf(stderr, "\n");
+            n = 0;
+        }
+        current = current-&gt;next;
+    }
+    fprintf(stderr, "\n");
+#endif
+    /*start compiling*/
+    current = awk-&gt;s_ele_head;
+    if(awk-&gt;s_ele_head ==  NULL){
+      rawkerr(awk,"First stage parsing is failed");
+      return 1;
+    }
+    awk-&gt;flags |= RYU_SC_FLAG_COMPILING_ROOT;
+    if((ele=_parse_parsed(awk)) == NULL){
+      rawkerr(awk,"Second stage parsing is failed");
+    }
+    root_ele = _mk_element(awk,RYU_SC_TYPE_ROOT_BLOCK);
+    _append_branch(awk,root_ele,ele);
+    awk-&gt;elements = root_ele;
+#ifdef _RYU_SC_DEBUG_
+    _tree_view_maker(root_ele,1);
+    _func *f = awk-&gt;funcs;
+    while(f!=NULL){
+    	fprintf(stderr,"Inside of function %s\n",f-&gt;name);
+    	_tree_view_maker(f-&gt;exec,1);
+    	f = f-&gt;next;
+    }
+#endif
+    return 0;
+}
+void _ryu_free_every_thing(_awk *awk){
+	if(awk==NULL)
+		return;
+	_valiable *tmp;
+	s_ele *stmp;
+	if(awk-&gt;line !=NULL){
+		tmp = awk-&gt;line;
+		awk-&gt;line = awk-&gt;line-&gt;right;
+		if(tmp-&gt;type == RYU_SC_VALIBLE_STR){
+			free(tmp-&gt;value.pval);
+		}
+		free(tmp);
+	}
+}
+void _ryu_awk_entry(struct order *order){
+	_awk *awk = _init_awk(order);
+	if(awk==NULL){
+		fprintf(stderr,"Failed to initialize awk\n");
+		return;
+	}
+	awk-&gt;program_st = get_read_stream_back(order,1);
+	if(awk-&gt;program_st==NULL){
+		fprintf(stderr,"[_ryu_awk_entry]Too few input streams\n");
+		return;
+	}
+
+	if(_ryucompile(awk,awk-&gt;program_st))
+        return;
+	awk-&gt;flags |= RYU_SC_FLAG_BEGIN;
+	if(_ryuexecute(awk,awk-&gt;elements)){
+		fprintf(stderr,"_ryuexecute returned 1\n");
+		_ryu_free_every_thing(awk);
+		return;
+	}
+	awk-&gt;flags &amp;= ~RYU_SC_FLAG_BEGIN;
+	while(!(awk-&gt;flags &amp; RYU_SC_FLAG_END)){
+		_set_record(awk);
+		if(_ryuexecute(awk,awk-&gt;elements)){
+			fprintf(stderr,"_ryuexecute returned 1\n");
+			_ryu_free_every_thing(awk);
+			return;
+		}
+	}
+	_free_record(awk);
+	if(_ryuexecute(awk,awk-&gt;elements)){
+		fprintf(stderr,"_ryuexecute returned 1\n");
+		_ryu_free_every_thing(awk);
+		return;
+	}
+	_ryu_free_every_thing(awk);
+}
+
+#define _disable_cele(ele) do \
+{ \
+	if(ele == NULL) \
+		break; \
+	if(ele-&gt;type == RYU_SC_CALC_TYPE_FUNC || \
+		ele-&gt;type == RYU_SC_CALC_TYPE_STR ||  \
+		ele-&gt;type == RYU_SC_CALC_TYPE_STRVAL || \
+		ele-&gt;type == RYU_SC_CALC_TYPE_VALIABLE )  \
+		{ \
+			free(ele-&gt;val.sval); \
+			ele-&gt;val.sval = NULL; \
+		} \
+	ele-&gt;type = 0; \
+}while(0)
+int _is_true_ele(_cele *ele){
+	if(ele == NULL)
+		return 0;
+	if(ele-&gt;type == RYU_SC_CALC_TYPE_DVAL){
+		return ele-&gt;val.dval ? 1 : 0;
+	}else if(ele-&gt;type ==RYU_SC_CALC_TYPE_STRVAL){
+		if(ele-&gt;val.sval == NULL)
+			return 0;
+		else if(!strcmp(ele-&gt;val.sval,""))
+			return 0;
+		return 1;
+	}
+	return 2;
+}
+#define RYU_SC_AND_OR_TRUE  (1)
+#define RYU_SC_AND_OR_FALSE (2)
+
+#define _check_and_or(current)  do{\
+	if(current == NULL) \
+		break; \
+	else if(current-&gt;type == RYU_SC_CALC_TYPE_STR){ \
+		if(!strcmp(current-&gt;val.sval,"||")){ \
+			tmp = _get_left(current); \
+			if(_get_left(tmp) != NULL) break; \
+			if(( n = _is_true_ele(tmp) ) == 1){ \
+				_disable_cele(tmp); \
+				_set_dval_cele(current,RYU_SC_CALC_TYPE_DVAL,1.0f); \
+				goto trueend; \
+			}else if(n == 2){\
+				\
+			}else{ \
+				_disable_cele(tmp); \
+				_disable_cele(current); \
+			} \
+		}else if(!strcmp(current-&gt;val.sval,"&amp;&amp;")){ \
+			tmp = _get_left(current); \
+			if(_get_left(tmp) != NULL) break; \
+			if(( n = _is_true_ele(tmp) ) == 1){ \
+				_disable_cele(tmp); \
+				_disable_cele(current); \
+			}else if(n == 2){\
+				\
+			}else{ \
+				/*0 &amp;&amp; 1*/ \
+				goto falseend; \
+			} \
+		} \
+	} \
+}while(0)
+
+_valiable * _get_argument(struct _farg *args,int index)
+{
+	int i = 0;
+	while(args!=NULL){
+		if(i==index){
+			return args-&gt;val;
+		}
+		i++;
+		args = args-&gt;next;
+	}
+	return NULL;
+}
+void RYU_SC_SHOW_ELEMENT( _element *ele){
+	if(ele == NULL)
+		return;
+	s_ele *sele = ele-&gt;todo;
+	fprintf(stderr,"Element name : %s  ",RYU_DEBUG_INFO[ele-&gt;type - 1]);
+	if(ele-&gt;type == RYU_SC_TYPE_PARSED_CALC){
+		_cele *cele = (_cele *)ele-&gt;todo;
+		while(cele != NULL){
+			if(cele-&gt;type == RYU_SC_CALC_TYPE_VALIABLE
+					||cele-&gt;type == RYU_SC_CALC_TYPE_FUNC
+					||cele-&gt;type == RYU_SC_CALC_TYPE_REGEX
+					||cele-&gt;type == RYU_SC_CALC_TYPE_SKEYWORD
+					||cele-&gt;type == RYU_SC_CALC_TYPE_STRVAL){
+				fprintf(stderr,"%s,",cele-&gt;val.sval);
+			}else if(cele-&gt;type == RYU_SC_CALC_TYPE_DVAL){
+				fprintf(stderr,"%f,",cele-&gt;val.dval);
+			}else{
+				fprintf(stderr,"%c,",cele-&gt;val.cval);
+			}
+			cele = cele-&gt;next;
+		}
+	}else{
+		while(sele!=NULL){
+			if(sele-&gt;is_pval){
+				fprintf(stderr,"%s,",sele-&gt;value.pval);
+			}else{
+				fprintf(stderr,"%c,",sele-&gt;value.cval);
+			}
+			sele = sele-&gt;next;
+		}
+	}
+	fprintf(stderr,"\n");
+}
+
+
+char * _get_string_cele(_awk *awk,_cele *ele){
+	if(ele == NULL)
+		return NULL;
+	if(ele-&gt;type == RYU_SC_CALC_TYPE_STRVAL || ele-&gt;type == RYU_SC_CALC_TYPE_FUNC || ele-&gt;type == RYU_SC_CALC_TYPE_REGEX)
+		return ele-&gt;val.sval;
+	if(ele-&gt;type == RYU_SC_CALC_TYPE_VALIABLE){
+		_valiable *val;
+		val = _get_valiable(awk,ele-&gt;val.sval);
+		if(val != NULL &amp;&amp; val-&gt;type == RYU_SC_VALIBLE_STR){
+			return val-&gt;value.pval;
+		}
+		return NULL;
+	}
+	return NULL;
+}
+int _check_regex(char *str,char *regex){
+	if(str == NULL || regex == NULL)
+		return 0;
+	regex_t reg;
+	if(regcomp(&amp;reg,regex,REG_EXTENDED|REG_NOSUB)){
+		fprintf(stderr,"Compiling %s failed",regex);
+		return 0;
+	}
+	if(!regexec(&amp;reg,str,10,NULL,0)){
+		regfree(&amp;reg);
+		return 1;
+	}
+	regfree(&amp;reg);
+	return 0;
+}
+int _check_flag(_awk *awk,int val){
+	return awk-&gt;flags &amp; val;
+}
+int _is_function_name(_awk *awk,const char *str){
+	if(str == NULL)
+		return 0;
+	int n,i;
+	_func *func;
+	i = RYU_BUILTIN_FUNC_COUNT/2;
+	if((n = strcmp(RYU_BUILTIN_FUNCS[i],str)) &gt; 0){
+		while(i&gt;=0){
+			if(!strcmp(RYU_BUILTIN_FUNCS[i],str)){
+				return 1;
+			}
+			i--;
+		}
+	}else if(n &lt; 0){
+		while(i&lt;RYU_BUILTIN_FUNC_COUNT){
+			if(!strcmp(RYU_BUILTIN_FUNCS[i],str)){
+				return 1;
+			}
+			i++;
+		}
+	}else{
+		return 1;
+	}
+	func = awk-&gt;funcs;
+	while(func!=NULL){
+		if(!strcmp(func-&gt;name,str))
+		{
+			return 1;
+		}
+		func = func-&gt;next;
+	}
+	return 0;
+}
+_element * _get_branch_at(_element *ele,int index){
+	if(index &gt;= ele-&gt;bIndex)
+		return NULL;
+	return ele-&gt;branches[index];
+}
+int _do_begin(_awk *awk,_element *executing){
+	if(_check_flag(awk,RYU_SC_FLAG_BEGIN))
+		return _ryuexecute(awk,_get_branch_at(executing,0));
+	else
+		return 0;
+}
+int _do_end(_awk *awk,_element *executing){
+	if(_check_flag(awk,RYU_SC_FLAG_END))
+		return _ryuexecute(awk,_get_branch_at(executing,0));
+	else
+		return 0;
+}
+int _call_Built_in_func(_awk *awk,s_ele *sele,int index)
+{
+	double (*executing)(_awk *,struct _farg *);
+	double dval;
+	struct _farg *arg = NULL;
+	_valiable *vari;
+	while(sele!=NULL){
+		if(sele-&gt;is_pval){
+			if(isdigit(sele-&gt;value.pval[0]) || sele-&gt;value.pval[0] == '\\'){
+				vari = _mk_valiable(awk,"temp");
+				if(vari == NULL)
+					return 1;
+				_set_dval_valiable(vari,(double)_get_long_from_sele(sele));
+			}else{
+				vari = _get_valiable(awk,sele-&gt;value.pval);
+			}
+		}else{
+			if(sele-&gt;value.cval == '\"'){
+				vari = _mk_valiable(awk,"temp");
+				if(vari==NULL)
+					return 1;
+				sele = sele-&gt;next;
+				_set_str_value(vari,sele-&gt;value.pval);
+			}else if(sele-&gt;value.cval == ','){
+
+			}else{
+				fprintf(stderr,"You can only use string value, numeric value and variable for argument of function\n");
+				return 1;
+			}
+		}
+		if(vari!=NULL){
+			_append_arg(&amp;arg,NULL,vari);
+			vari = NULL;
+		}
+		sele = sele-&gt;next;
+	}
+	executing = RYU_BUILTIN_FUNCS_PTR[index];
+	dval = executing(awk,arg);
+	awk-&gt;result = dval;
+	return 0;
+}
+int _append_arg(struct _farg **arg,char *name,_valiable *val){
+	struct _farg *head = *arg;
+	struct _farg *argPtr;
+	if(head == NULL){
+		*arg = calloc(1,sizeof(struct _farg));
+		if(*arg == NULL){
+			fprintf(stderr,"Allocation failed");
+			return 1;
+		}
+		argPtr = *arg;
+		argPtr-&gt;name = name;
+		argPtr-&gt;val = val;
+		return 0;
+	}else{
+		argPtr = calloc(1,sizeof(struct _farg));
+		if(argPtr == NULL){
+			fprintf(stderr,"Allocation failed");
+			return 1;
+		}
+	}
+	while(head-&gt;next != NULL)
+		head = head-&gt;next;
+	argPtr-&gt;name = name;
+	argPtr-&gt;val = val;
+	head-&gt;next = argPtr;
+	return 0;
+}
+long _get_long_from_sele(s_ele *ele){
+	if(!ele-&gt;is_pval)
+		return 0;
+	if(ele-&gt;value.pval[0] == '\\'){
+		if(ele-&gt;value.pval[1] == 'x'){
+			return strtol(&amp;ele-&gt;value.pval[2], NULL, 16);
+		}else{
+			return strtol(&amp;ele-&gt;value.pval[1], NULL, 8);
+		}
+	}
+	return atol(ele-&gt;value.pval);
+}
+int _do_func_call(_awk *awk,_cele *cele)
+{
+	char *name = _get_string_cele(awk,cele);
+	if(name == NULL)
+		return 1;
+	int n,i;
+	_func *func;
+	s_ele *sele = cele-&gt;option.sele;
+	struct _farg *arg = NULL;
+	_valiable *vari = NULL;
+	func = awk-&gt;funcs;
+	while(func!=NULL){
+		if(!strcmp(func-&gt;name,name))
+		{
+			break;
+		}
+		func = func-&gt;next;
+	}
+	if(func!=NULL){
+		i = 0;
+		while(sele!=NULL &amp;&amp; i &lt; func-&gt;index){
+			if(sele-&gt;is_pval){
+				if(isdigit(sele-&gt;value.pval[0]) || sele-&gt;value.pval[0] == '\\'){
+					vari = _mk_valiable(awk,"temp");
+					if(vari == NULL)
+						return 1;
+					_set_dval_valiable(vari,(double)_get_long_from_sele(sele));
+				}else{
+					vari = _get_valiable(awk,sele-&gt;value.pval);
+				}
+			}else{
+				if(sele-&gt;value.cval == '\"'){
+					vari = _mk_valiable(awk,"temp");
+					if(vari==NULL)
+						return 1;
+					sele = sele-&gt;next;
+					_set_str_value(vari,sele-&gt;value.pval);
+				}else if(sele-&gt;value.cval == ','){
+
+				}else{
+					fprintf(stderr,"You can only use string value, numeric value and variable for argument of function\n");
+					return 1;
+				}
+			}
+			if(vari!=NULL){
+				_append_arg(&amp;arg,func-&gt;defArg[i++],vari);
+				vari = NULL;
+			}
+			sele = sele-&gt;next;
+		}
+		awk-&gt;stack_index++;
+		if(awk-&gt;stack_index &gt;= RYU_SC_STACK_SIZE){
+			fprintf(stderr,"Stack overflow\nUse less recursive function.\n");
+			return 1;
+		}
+		awk-&gt;stack[awk-&gt;stack_index] = arg;
+		if(_ryuexecute(awk,func-&gt;exec)){
+			return 1;
+		}
+		awk-&gt;flags &amp;= ~RYU_SC_FLAG_RETURN;
+		awk-&gt;flags &amp;= ~RYU_SC_FLAG_BREAK;
+		awk-&gt;stack_index--;
+		goto end;
+	}
+	/*check built in functions*/
+	i = RYU_BUILTIN_FUNC_COUNT/2;
+	if((n = strcmp(RYU_BUILTIN_FUNCS[i],name)) &gt; 0){
+		while(i&gt;=0){
+			if(!strcmp(RYU_BUILTIN_FUNCS[i],name)){
+				if(_call_Built_in_func(awk,sele,i)){
+					return 1;
+				}
+				goto end;
+			}
+			i--;
+		}
+	}else if(n &lt; 0){
+		while(i&lt;RYU_BUILTIN_FUNC_COUNT){
+			if(!strcmp(RYU_BUILTIN_FUNCS[i],name)){
+				if(_call_Built_in_func(awk,sele,i)){
+					return 1;
+				}
+				goto end;
+			}
+			i++;
+		}
+	}else{
+		if(_call_Built_in_func(awk,sele,i)){
+			return 1;
+		}
+		return 0;
+	}
+	fprintf(stderr,"%s not found.\n",name);
+	return 1;
+	end:
+	return 0;
+}
+_cele * _append_cele(_cele *head){
+	if(head == NULL){
+		return (_cele *)calloc(1,sizeof(_cele));
+	}else{
+		while(head-&gt;next != NULL){
+			head = head-&gt;next;
+		}
+		head-&gt;next = (_cele *)calloc(1,sizeof(_cele));
+		if(head-&gt;next == NULL)
+			return NULL;
+		head-&gt;next-&gt;last = head;
+	}
+	return head-&gt;next;
+}
+void _set_ptr_cele(_cele *ele,int type,char *ptr){
+	_disable_cele(ele);
+	ele-&gt;type = type;
+	ele-&gt;val.sval = strdup(ptr);
+}
+void _set_char_cele(_cele *ele,char c){
+	_disable_cele(ele);
+	ele-&gt;type = RYU_SC_CALC_TYPE_CHAR;
+	ele-&gt;val.cval = c;
+}
+void _set_dval_cele(_cele *ele,int type,double val){
+	_disable_cele(ele);
+	ele-&gt;type = type;
+	ele-&gt;val.dval = val;
+}
+#define _GET_CHAR_FROM_SELE(ele) (ele-&gt;is_pval ? 0 : ele-&gt;value.cval)
+#define _GET_STR_FROM_SELE(ele)  (ele-&gt;is_pval ? ele-&gt;value.pval : NULL)
+
+#define _append_option(target,ele) do{ \
+		if(target-&gt;option.sele == NULL){\
+			target-&gt;option.sele = _duplicate_sele(awk,ele); \
+		} \
+		else{ \
+			tmp = target-&gt;option.sele;\
+			while(tmp-&gt;next != NULL){\
+				tmp = tmp-&gt;next; \
+			}\
+			tmp-&gt;next = _duplicate_sele(awk,ele); \
+		}\
+}while(0)
+_cele * _parse_cele(_awk *awk,_element *executing){
+	_cele *head = NULL;
+	s_ele *tmp;
+	s_ele *current = executing-&gt;todo;
+	char buff[128];
+	int cou;
+	while(current != NULL){
+		if(current-&gt;is_pval){
+			if(_is_function_name(awk,_GET_STR_FROM_SELE(current))){
+				head = _append_cele(head);
+				if(head == NULL)
+					return NULL;
+				_set_ptr_cele(head,RYU_SC_CALC_TYPE_FUNC,_GET_STR_FROM_SELE(current));
+				current = current-&gt;next;
+				if(current-&gt;is_pval || current-&gt;value.cval != '('){
+					rparsederr(current,"Invalid function call\n");
+					return NULL;
+				}
+				cou = 1;
+				while(cou){
+					current = current-&gt;next;
+					if(current-&gt;is_pval){
+						_append_option(head,current);
+					}else if(!current-&gt;is_pval &amp;&amp; current-&gt;value.cval == ')'){
+						cou--;
+					}else if(!current-&gt;is_pval &amp;&amp; current-&gt;value.cval == '('){
+						cou++;
+					}else if(!current-&gt;is_pval &amp;&amp; current-&gt;value.cval == '\"'){
+						_append_option(head,current);
+					}else{
+						_append_option(head,current);
+					}
+				}
+			}else if(isdigit(current-&gt;value.pval[0])){
+				/*Constant double value*/
+				head = _append_cele(head);
+				if(head == NULL)
+					return NULL;
+				_set_dval_cele(head,RYU_SC_CALC_TYPE_DVAL,atof(_GET_STR_FROM_SELE(current)));
+			}else{
+				/*Valibale*/
+				head = _append_cele(head);
+				if(head == NULL)
+					return NULL;
+				tmp = current;
+				if(_GET_CHAR_FROM_SELE(current-&gt;next) == '['){
+					/*array*/
+					current = current-&gt;next-&gt;next;
+					_set_ptr_cele(head,RYU_SC_CALC_TYPE_ARRAY,_GET_STR_FROM_SELE(tmp));
+					if(_GET_CHAR_FROM_SELE(current) == '\"'){
+						current = current-&gt;next;
+						_valiable *val = _mk_valiable(awk,"");
+						_set_str_value(val,_GET_STR_FROM_SELE(current));
+						head-&gt;option.sele = (s_ele *)val;
+					}else if(isdigit(_GET_STR_FROM_SELE(current)[0])){
+						_valiable *val = _mk_valiable(awk,"");
+						_set_str_value(val,_GET_STR_FROM_SELE(current));
+						head-&gt;option.sele = (s_ele *)val;
+					}else{
+						head-&gt;option.sele = (s_ele *)_get_valiable(awk,_GET_STR_FROM_SELE(current));
+					}
+					current = current-&gt;next;
+					_get_valiable(awk,_GET_STR_FROM_SELE(tmp))-&gt;type = RYU_SC_VALINLE_ARRAY;
+				}else{
+					_set_ptr_cele(head,RYU_SC_CALC_TYPE_VALIABLE,_GET_STR_FROM_SELE(current));
+				}
+			}
+		}else{
+			switch (current-&gt;value.cval) {
+			case '+':
+			case '-':
+				if(_GET_CHAR_FROM_SELE(current-&gt;next) == '='){
+					head = _append_cele(head);
+					if(head == NULL)
+						return NULL;
+					_set_ptr_cele(head,RYU_SC_CALC_TYPE_STR,"+=");
+					current = current-&gt;next;
+				}else if(_GET_CHAR_FROM_SELE(current-&gt;next) == current-&gt;value.cval){
+					head = _append_cele(head);
+					if(head == NULL)
+						return NULL;
+					if(current-&gt;value.cval == '+')
+						_set_ptr_cele(head,RYU_SC_CALC_TYPE_STR,"++");
+					else
+						_set_ptr_cele(head,RYU_SC_CALC_TYPE_STR,"--");
+					current = current-&gt;next;
+				}else{
+					head = _append_cele(head);
+					if(head == NULL)
+						return NULL;
+					_set_char_cele(head,current-&gt;value.cval);
+				}
+				break;
+			case '*':
+			case '/':
+			case '%':
+			case '~':
+				if(_GET_CHAR_FROM_SELE(current-&gt;next) == '='){
+					head = _append_cele(head);
+					if(head == NULL)
+						return NULL;
+					if(_GET_CHAR_FROM_SELE(current) == '*')
+						_set_ptr_cele(head,RYU_SC_CALC_TYPE_STR,"*=");
+					else if(_GET_CHAR_FROM_SELE(current) == '/')
+						_set_ptr_cele(head,RYU_SC_CALC_TYPE_STR,"/=");
+					else
+						_set_ptr_cele(head,RYU_SC_CALC_TYPE_STR,"%=");
+					current = current-&gt;next;
+				}else{
+					head = _append_cele(head);
+					if(head == NULL)
+						return NULL;
+					_set_char_cele(head,current-&gt;value.cval);
+				}
+				break;
+			case '=':
+				if(_GET_CHAR_FROM_SELE(current-&gt;next) == '='){
+					head = _append_cele(head);
+					if(head == NULL)
+						return NULL;
+					_set_ptr_cele(head,RYU_SC_CALC_TYPE_STR,"==");
+					current = current-&gt;next;
+				}else{
+					head = _append_cele(head);
+					if(head == NULL)
+						return NULL;
+					_set_char_cele(head,current-&gt;value.cval);
+				}
+				break;
+			case '&lt;':
+			case '&gt;':
+				if(_GET_CHAR_FROM_SELE(current-&gt;next) == '='){
+					head = _append_cele(head);
+					if(head == NULL)
+						return NULL;
+					if(_GET_CHAR_FROM_SELE(current) == '&lt;')
+						_set_ptr_cele(head,RYU_SC_CALC_TYPE_STR,"&lt;=");
+					else
+						_set_ptr_cele(head,RYU_SC_CALC_TYPE_STR,"&gt;=");
+					current = current-&gt;next;
+				}else{
+					head = _append_cele(head);
+					if(head == NULL)
+						return NULL;
+					_set_char_cele(head,current-&gt;value.cval);
+				}
+				break;
+			case '|':
+			case '&amp;':
+				head = _append_cele(head);
+				if(head == NULL)
+					return NULL	;
+				if(_GET_CHAR_FROM_SELE(current-&gt;next) == '='){
+					sprintf(buff,"%c%c",_GET_CHAR_FROM_SELE(current),_GET_CHAR_FROM_SELE(current-&gt;next));
+					_set_ptr_cele(head,RYU_SC_CALC_TYPE_STR,buff);
+					current = current-&gt;next;
+				}else if(_GET_CHAR_FROM_SELE(current-&gt;next) == _GET_CHAR_FROM_SELE(current)){
+					sprintf(buff,"%c%c",_GET_CHAR_FROM_SELE(current),_GET_CHAR_FROM_SELE(current-&gt;next));
+					_set_ptr_cele(head,RYU_SC_CALC_TYPE_STR,buff);
+					current = current-&gt;next;
+				}else{
+					_set_char_cele(head,_GET_CHAR_FROM_SELE(current));
+				}
+				break;
+			case '\"':
+			case '\'':
+				head = _append_cele(head);
+				if(head == NULL)
+					return NULL;
+				if(_GET_STR_FROM_SELE(current-&gt;next) == NULL){
+					/*Not string*/
+					sprintf(buff,"%c",_GET_CHAR_FROM_SELE(current));
+					_set_ptr_cele(head,RYU_SC_CALC_TYPE_STRVAL,buff);
+					current = current-&gt;next;
+				}else{
+					_set_ptr_cele(head,RYU_SC_CALC_TYPE_STRVAL,_GET_STR_FROM_SELE(current-&gt;next));
+					current = current-&gt;next;
+				}
+				break;
+			case 'r':
+				head = _append_cele(head);
+				if(head == NULL)
+					return NULL;
+				if(_GET_STR_FROM_SELE(current-&gt;next) == NULL){
+					fprintf(stderr,"Invalid regular expression\n");
+					return NULL;
+				}
+				_set_ptr_cele(head,RYU_SC_CALC_TYPE_REGEX,_GET_STR_FROM_SELE(current-&gt;next));
+				current = current-&gt;next;
+				break;
+			case '$':
+				head = _append_cele(head);
+				if(head == NULL)
+					return NULL;
+				current = current-&gt;next;
+				if(current-&gt;is_pval){
+					sprintf(buff,"$%s",current-&gt;value.pval);
+					_set_ptr_cele(head,RYU_SC_CALC_TYPE_VALIABLE,buff);
+				}else{
+					rparsederr(current,"Syntax error\n");
+					return NULL;
+				}
+				break;
+			case '!':
+				head = _append_cele(head);
+				if(head==NULL)
+					return NULL;
+				_set_char_cele(head,'!');
+				break;
+			default:
+				sprintf(buff,"%c",_GET_CHAR_FROM_SELE(current));
+				if(_is_function_name(awk,buff)){
+					if(_GET_CHAR_FROM_SELE(current-&gt;next) != '(')
+					{
+						fprintf(stderr,"%s is name of function.\nIvalid function call.\n",_GET_STR_FROM_SELE(current));
+						return NULL;
+					}
+					head = _append_cele(head);
+					if(head == NULL)
+						return NULL;
+					_set_ptr_cele(head,RYU_SC_CALC_TYPE_FUNC,_GET_STR_FROM_SELE(current));
+					cou = 1;
+					current = current-&gt;next;
+					head-&gt;option.sele = current;
+					s_ele *tmp;
+					while(cou&gt;0){
+						if(_GET_CHAR_FROM_SELE(current) == '(')
+							cou++;
+						else if(_GET_CHAR_FROM_SELE(current) == ')')
+							cou--;
+						if(cou&lt;=0)
+							break;
+						tmp = current;
+						current = current-&gt;next;
+					}
+					tmp-&gt;next = NULL;
+				}else if(isalnum(_GET_CHAR_FROM_SELE(current)) || _GET_CHAR_FROM_SELE(current) == '_'){
+					/*This is variable*/
+					head = _append_cele(head);
+					if(head == NULL)
+						return NULL;
+					_set_ptr_cele(head,RYU_SC_CALC_TYPE_VALIABLE,buff);
+				}
+				head = _append_cele(head);
+				if(head == NULL)
+					return NULL;
+				_set_char_cele(head,_GET_CHAR_FROM_SELE(current));
+				break;
+			}
+		}
+		if(current != NULL)
+			current = current-&gt;next;
+	}
+	if(head == NULL){
+		head = _append_cele(head);
+		_set_dval_cele(head,RYU_SC_CALC_TYPE_DVAL,1.0f);
+	}
+	while(head-&gt;last != NULL)
+		head = head-&gt;last;
+	return head;
+}
+_cele * _get_left(_cele *ele){
+	if(ele == NULL)
+		return NULL;
+	ele = ele-&gt;last;
+	while(ele!=NULL){
+		if(ele-&gt;type!=0)
+			return ele;
+		ele = ele-&gt;last;
+	}
+	return NULL;
+}
+_cele * _get_right(_cele *ele){
+	if(ele == NULL)
+		return NULL;
+	ele = ele-&gt;next;
+	while(ele != NULL){
+		if(ele-&gt;type != 0)
+			return ele;
+		ele = ele-&gt;next;
+	}
+	return NULL;
+}
+double _get_dval_cele(_awk *awk,_cele *ele){
+	_valiable *vari;
+	if(ele == NULL)
+		return 0;
+	switch (ele-&gt;type) {
+		case RYU_SC_CALC_TYPE_DVAL:
+			return ele-&gt;val.dval;
+			break;
+		case RYU_SC_CALC_TYPE_CHAR:
+			return 0;
+		case RYU_SC_CALC_TYPE_FUNC:
+			if(_do_func_call(awk,ele))
+				return 0;
+			return awk-&gt;result;
+		case RYU_SC_CALC_TYPE_VALIABLE:
+			return _get_dval_from_valiable(_get_valiable(awk,ele-&gt;val.sval));
+			break;
+		case RYU_SC_CALC_TYPE_ARRAY:
+			return _get_dval_from_valiable(_get_variable_from_array(awk,_get_valiable(awk,ele-&gt;val.sval),_get_sval_from_valiable(( (_valiable *) ele-&gt;option.sele))));
+		case RYU_SC_CALC_TYPE_STRVAL:
+			return atof(ele-&gt;val.sval);
+		default:
+			return 0;
+			break;
+	}
+	return 0;
+}
+int _can_get_dval(_cele *ele){
+	if(ele == NULL)
+		return 0;
+	switch (ele-&gt;type) {
+	case RYU_SC_CALC_TYPE_DVAL:
+	case RYU_SC_CALC_TYPE_FUNC:
+	case RYU_SC_CALC_TYPE_VALIABLE:
+	case RYU_SC_CALC_TYPE_STRVAL:
+	case RYU_SC_CALC_TYPE_ARRAY:
+		return 1;
+	default:
+		return 0;
+		break;
+	}
+	return 0;
+}
+_cele *_duplicate_cele_chain(_cele *ele){
+	_cele *val;
+	_cele *head;
+	while(ele-&gt;last != NULL)
+		ele = ele-&gt;last;
+	val = malloc(sizeof(_cele));
+	if(val == NULL)
+		return NULL;
+	head = val;
+	val-&gt;type = ele-&gt;type;
+	val-&gt;option = ele-&gt;option;
+	if(ele-&gt;type == RYU_SC_CALC_TYPE_CHAR){
+		val-&gt;val.cval = ele-&gt;val.cval;
+	}else if(ele-&gt;type == RYU_SC_CALC_TYPE_DVAL){
+		val-&gt;val.dval = ele-&gt;val.dval;
+	}else{
+		val-&gt;val.sval = strdup(ele-&gt;val.sval);
+	}
+	val-&gt;last = NULL;
+	ele = ele-&gt;next;
+	while(ele != NULL){
+		val-&gt;next = malloc(sizeof(_cele));
+		if(val-&gt;next == NULL)
+			return NULL;
+		val-&gt;next-&gt;last = val;
+		val-&gt;next-&gt;type = ele-&gt;type;
+		val-&gt;next-&gt;option = ele-&gt;option;
+		if(ele-&gt;type == RYU_SC_CALC_TYPE_CHAR){
+			val-&gt;next-&gt;val.cval = ele-&gt;val.cval;
+		}else if(ele-&gt;type == RYU_SC_CALC_TYPE_DVAL){
+			val-&gt;next-&gt;val.dval = ele-&gt;val.dval;
+		}else{
+			val-&gt;next-&gt;val.sval = strdup(ele-&gt;val.sval);
+		}
+		val = val-&gt;next;
+		ele = ele-&gt;next;
+	}
+	val-&gt;next = NULL;
+	return head;
+}
+void _free_cele_chain(_cele *ele){
+	if(ele == NULL)
+		return;
+	while(ele-&gt;last != NULL)
+		ele = ele-&gt;last;
+	while(ele-&gt;next!=NULL){
+		if(ele-&gt;last != NULL &amp;&amp; ele-&gt;last-&gt;type != 0 &amp;&amp; ele-&gt;last-&gt;type != RYU_SC_CALC_TYPE_CHAR &amp;&amp; ele-&gt;last-&gt;type != RYU_SC_CALC_TYPE_DVAL){
+			free(ele-&gt;last-&gt;val.sval);
+		}
+		if(ele-&gt;last != NULL)
+			free(ele-&gt;last);
+		ele = ele-&gt;next;
+	}
+	if(ele-&gt;type != 0 &amp;&amp; ele-&gt;type != RYU_SC_CALC_TYPE_CHAR &amp;&amp; ele-&gt;type != RYU_SC_CALC_TYPE_DVAL){
+		free(ele-&gt;val.sval);
+	}
+	free(ele);
+}
+double _do_parsed_calc(_awk *awk,_cele *ele){
+	_cele *head = _duplicate_cele_chain(ele);
+	_cele *current = head;
+	if(head == NULL)
+		return NAN;
+	_cele *tmp,*tmp2;
+	int cou;
+	int n;
+	double dval;
+	_valiable *variable;
+	char *str,*str2;
+	/*()*/
+	while(current != NULL){
+		if(current-&gt;type == RYU_SC_CALC_TYPE_CHAR &amp;&amp; current-&gt;val.cval == '('){
+			tmp = current;
+			cou = 1;
+			while(cou&gt;0){
+				current = current-&gt;next;
+				if(current-&gt;val.cval == '(')
+					cou++;
+				else if(current-&gt;val.cval == ')')
+					cou--;
+			}
+			current-&gt;last-&gt;next = NULL;
+			tmp-&gt;next-&gt;last = NULL;
+			dval = _do_parsed_calc(awk,tmp-&gt;next);
+			if(tmp2 == NULL){
+				_free_cele_chain(current);
+				return NAN;
+			}
+			tmp-&gt;next = tmp2;
+			tmp2-&gt;last = tmp;
+			current-&gt;last = tmp2;
+			tmp2-&gt;next = current;
+		}
+		_check_and_or(current);
+		current = current-&gt;next;
+	}
+	current = head;
+	while(current){
+		if(current-&gt;type == RYU_SC_CALC_TYPE_SKEYWORD &amp;&amp; !strcmp(current-&gt;val.sval,"++")){
+			tmp = _get_left(current);
+			if(tmp != NULL &amp;&amp; (tmp-&gt;type == RYU_SC_CALC_TYPE_VALIABLE || tmp-&gt;type == RYU_SC_CALC_TYPE_ARRAY)){
+				/*i++*/
+				_disable_cele(current);
+				if(tmp-&gt;type == RYU_SC_CALC_TYPE_ARRAY){
+					variable = _get_variable_from_array(awk,
+							_get_valiable(awk,tmp-&gt;val.sval),
+							_get_sval_from_valiable(((_valiable *)tmp-&gt;option.sele)));
+				}else{
+					variable = _get_valiable(awk,tmp-&gt;val.sval);
+				}
+				if(variable == NULL){
+					_free_cele_chain(head);
+					return NAN;
+				}
+				_set_dval_cele(tmp,RYU_SC_CALC_TYPE_DVAL,_get_dval_from_valiable(variable));
+				_set_dval_valiable(variable,tmp-&gt;val.dval + 1);
+			}else if(((tmp=_get_right(current))!=NULL) &amp;&amp; (tmp-&gt;type == RYU_SC_CALC_TYPE_VALIABLE || tmp-&gt;type == RYU_SC_CALC_TYPE_ARRAY)){
+				/*++i*/
+				_disable_cele(current);
+				if(tmp-&gt;type == RYU_SC_CALC_TYPE_ARRAY){
+					variable = _get_variable_from_array(awk,
+							_get_valiable(awk,tmp-&gt;val.sval),
+							_get_sval_from_valiable(((_valiable *)tmp-&gt;option.sele)));
+				}else{
+					variable = _get_valiable(awk,tmp-&gt;val.sval);
+				}
+				if(variable == NULL){
+					_free_cele_chain(head);
+					return NAN;
+				}
+				_set_dval_cele(tmp,RYU_SC_CALC_TYPE_DVAL,_get_dval_from_valiable(variable)+1);
+				_set_dval_valiable(variable,tmp-&gt;val.dval);
+			}else{
+				fprintf(stderr,"Invalid increment\n");
+				_free_cele_chain(head);
+				return NAN;
+			}
+		}else if(current-&gt;type == RYU_SC_CALC_TYPE_SKEYWORD &amp;&amp; !strcmp(current-&gt;val.sval,"--")){
+			tmp = _get_left(current);
+			if(tmp != NULL &amp;&amp; (tmp-&gt;type == RYU_SC_CALC_TYPE_VALIABLE || tmp-&gt;type == RYU_SC_CALC_TYPE_ARRAY)){
+				/*i--*/
+				_disable_cele(current);
+				if(tmp-&gt;type == RYU_SC_CALC_TYPE_ARRAY){
+					variable = _get_variable_from_array(awk,
+							_get_valiable(awk,tmp-&gt;val.sval),
+							_get_sval_from_valiable(((_valiable *)tmp-&gt;option.sele)));
+				}else{
+					variable = _get_valiable(awk,tmp-&gt;val.sval);
+				}
+				if(variable == NULL){
+					_free_cele_chain(head);
+					return NAN;
+				}
+				_set_dval_cele(tmp,RYU_SC_CALC_TYPE_DVAL,_get_dval_from_valiable(variable));
+				_set_dval_valiable(variable,tmp-&gt;val.dval - 1);
+			}else if(((tmp=_get_right(current))!=NULL) &amp;&amp; (tmp-&gt;type == RYU_SC_CALC_TYPE_VALIABLE || tmp-&gt;type == RYU_SC_CALC_TYPE_ARRAY)){
+				/*--i*/
+				_disable_cele(current);
+				if(tmp-&gt;type == RYU_SC_CALC_TYPE_ARRAY){
+					variable = _get_variable_from_array(awk,
+							_get_valiable(awk,tmp-&gt;val.sval),
+							_get_sval_from_valiable(((_valiable *)tmp-&gt;option.sele)));
+				}else{
+					variable = _get_valiable(awk,tmp-&gt;val.sval);
+				}
+				if(variable == NULL){
+					_free_cele_chain(head);
+					return NAN;
+				}
+				_set_dval_cele(tmp,RYU_SC_CALC_TYPE_DVAL,_get_dval_from_valiable(variable)-1);
+				_set_dval_valiable(variable,tmp-&gt;val.dval);
+			}else{
+				fprintf(stderr,"Invalid increment\n");
+				_free_cele_chain(head);
+				return NAN;
+			}
+		}
+		_check_and_or(current);
+		current = current-&gt;next;
+	}
+	current = head;
+	/* *,/ or %*/
+	while(current!=NULL){
+		if(current-&gt;type == RYU_SC_CALC_TYPE_CHAR){
+			switch(current-&gt;val.cval){
+			case '*':
+			case '%':
+			case '/':
+				tmp = _get_left(current);
+				tmp2 = _get_right(current);
+				switch(current-&gt;val.cval){
+				case '*':
+					dval = _get_dval_cele(awk,tmp) * _get_dval_cele(awk,tmp2);
+					break;
+				case '/':
+					dval = _get_dval_cele(awk,tmp) / _get_dval_cele(awk,tmp2);
+					break;
+				case '%':
+					dval = ((int)_get_dval_cele(awk,tmp)) % ((int)_get_dval_cele(awk,tmp2));
+					break;
+				}
+				_disable_cele(tmp);
+				_disable_cele(tmp2);
+				_set_dval_cele(current,RYU_SC_CALC_TYPE_DVAL,dval);
+				break;
+			}
+		}
+		_check_and_or(current);
+		current = current-&gt;next;
+	}
+	current = head;
+	while(current!=NULL){
+		if(current-&gt;type == RYU_SC_CALC_TYPE_CHAR){
+			switch(current-&gt;val.cval){
+			case '+':
+			case '-':
+				tmp = _get_left(current);
+				tmp2 = _get_right(current);
+				if(tmp2 == NULL){
+					fprintf(stderr,"Invalid calculation\n");
+					_free_cele_chain(head);
+					return NAN;
+				}
+				if(_can_get_dval(tmp)){
+					switch(current-&gt;val.cval){
+					case '+':
+						dval = _get_dval_cele(awk,tmp) + _get_dval_cele(awk,tmp2);
+						break;
+					case '-':
+						dval = _get_dval_cele(awk,tmp) - _get_dval_cele(awk,tmp2);
+						break;
+					}
+					_disable_cele(tmp);
+					_disable_cele(tmp2);
+					_set_dval_cele(current,RYU_SC_CALC_TYPE_DVAL,dval);
+				}else{
+					if(!_can_get_dval(tmp2)){
+						fprintf(stderr,"Invalid calculation.\nOdd +/-.\n");
+						return NAN;
+					}
+					switch(current-&gt;val.cval){
+					case '+':
+						dval = _get_dval_cele(awk,tmp2);
+						break;
+					case '-':
+						dval = -1 * _get_dval_cele(awk,tmp2);
+						break;
+					}
+					_disable_cele(tmp2);
+					_set_dval_cele(current,RYU_SC_CALC_TYPE_DVAL,dval);
+				}
+
+				break;
+			}
+		}
+		_check_and_or(current);
+		current = current-&gt;next;
+	}
+	current = head;
+	while(current!=NULL){
+		if(current-&gt;type == RYU_SC_CALC_TYPE_STR &amp;&amp; current-&gt;val.sval[1] == '=' ){
+			if( current-&gt;val.sval[0] == '=' || current-&gt;val.sval[0] == '&gt;' || current-&gt;val.sval[0] == '&lt;' ){
+				tmp = _get_left(current);
+				tmp2 = _get_right(current);
+				if(tmp == NULL || tmp2 == NULL){
+					fprintf(stderr,"Invalid substitution\n");
+					_free_cele_chain(head);
+					return NAN;
+				}
+				switch(current-&gt;val.sval[0]){
+						case '=':
+							str = _get_string_cele(awk,tmp);
+							str2 = _get_string_cele(awk,tmp2);
+							if(str == NULL || str2 == NULL){
+								if(_get_dval_cele(awk,tmp) == _get_dval_cele(awk,tmp2))
+									dval = 1;
+								else
+									dval = 0;
+								_set_dval_cele(current,RYU_SC_CALC_TYPE_DVAL,dval);
+							}else{
+								if(!strcmp(str,str2))
+									dval = 1;
+								else
+									dval = 0;
+								_set_dval_cele(current,RYU_SC_CALC_TYPE_DVAL,dval);
+							}
+							break;
+						case '&lt;':
+							if(_get_dval_cele(awk,tmp) &lt;= _get_dval_cele(awk,tmp2))
+								dval = 1;
+							else
+								dval = 0;
+							_set_dval_cele(current,RYU_SC_CALC_TYPE_DVAL,dval);
+							break;
+						case '&gt;':
+							if(_get_dval_cele(awk,tmp) &gt;= _get_dval_cele(awk,tmp2))
+								dval = 1;
+							else
+								dval = 0;
+							_set_dval_cele(current,RYU_SC_CALC_TYPE_DVAL,dval);
+							break;
+				}
+				_disable_cele(tmp);
+				_disable_cele(tmp2);
+			}
+		}else if(current-&gt;type == RYU_SC_CALC_TYPE_CHAR &amp;&amp; ( current-&gt;val.cval == '&lt;' || current-&gt;val.cval == '&gt;' ) ){
+			tmp = _get_left(current);
+			tmp2 = _get_right(current);
+			if(tmp == NULL || tmp2 == NULL){
+				fprintf(stderr,"Invalid calculation");
+				_free_cele_chain(head);
+				return NAN;
+			}
+			if(current-&gt;val.cval == '&lt;'){
+				if(_get_dval_cele(awk,tmp) &lt; _get_dval_cele(awk,tmp2))
+					dval = 1;
+				else
+					dval = 0;
+				_set_dval_cele(current,RYU_SC_CALC_TYPE_DVAL,dval);
+			}else{
+				if(_get_dval_cele(awk,tmp) &gt; _get_dval_cele(awk,tmp2))
+					dval = 1;
+				else
+					dval = 0;
+				_set_dval_cele(current,RYU_SC_CALC_TYPE_DVAL,dval);
+			}
+			_disable_cele(tmp);
+			_disable_cele(tmp2);
+		}else if(current-&gt;type == RYU_SC_CALC_TYPE_CHAR &amp;&amp; current-&gt;val.cval == '~'){
+			tmp = _get_left(current);
+			tmp2 = _get_right(current);
+			if(tmp == NULL || tmp2 == NULL){
+				fprintf(stderr,"Invalid calculation");
+				_free_cele_chain(head);
+				return NAN;
+			}
+			if(tmp-&gt;type == RYU_SC_CALC_TYPE_REGEX){
+				if(_check_regex(_get_string_cele(awk,tmp2),_get_string_cele(awk,tmp))){
+					_set_dval_cele(current,RYU_SC_CALC_TYPE_DVAL,1.0f);
+				}else{
+					_set_dval_cele(current,RYU_SC_CALC_TYPE_DVAL,0.0f);
+				}
+			}else if(tmp2-&gt;type == RYU_SC_CALC_TYPE_REGEX){
+				if(_check_regex(_get_string_cele(awk,tmp2),_get_string_cele(awk,tmp))){
+					_set_dval_cele(current,RYU_SC_CALC_TYPE_DVAL,1.0f);
+				}else{
+					_set_dval_cele(current,RYU_SC_CALC_TYPE_DVAL,0.0f);
+				}
+			}else{
+				fprintf(stderr,"Invalid regular expression\n");
+				_free_cele_chain(head);
+				return NAN;
+			}
+			_disable_cele(tmp);
+			_disable_cele(tmp2);
+		}
+		_check_and_or(current);
+		current = current-&gt;next;
+	}
+	current = head;
+	while(current != NULL){
+		if(current-&gt;type == RYU_SC_CALC_TYPE_CHAR &amp;&amp; current-&gt;val.cval == '='){
+			tmp = _get_left(current);
+			tmp2 = _get_right(current);
+			if(tmp == NULL || tmp2 == NULL){
+				fprintf(stderr,"Invalid substitution\n");
+				_free_cele_chain(head);
+				return NAN;
+			}
+			if(!(tmp-&gt;type == RYU_SC_CALC_TYPE_VALIABLE || tmp-&gt;type == RYU_SC_CALC_TYPE_ARRAY)){
+				fprintf(stderr,"Invalid substitution to %s.\nYou can only substitute value into variable.\n",tmp-&gt;val.sval);
+				_free_cele_chain(head);
+				return NAN;
+			}
+			if(tmp-&gt;type == RYU_SC_CALC_TYPE_VALIABLE){
+				variable = _get_valiable(awk,tmp-&gt;val.sval);
+			}else{
+				variable = _get_variable_from_array(awk,_get_valiable(awk,tmp-&gt;val.sval),_get_sval_from_valiable(((_valiable *)tmp-&gt;option.sele)) );
+			}
+			if(variable == NULL){
+				fprintf(stderr,"Invalid variable\n");
+				_free_cele_chain(head);
+				return NAN;
+			}
+			switch(tmp2-&gt;type){
+			case RYU_SC_CALC_TYPE_DVAL:
+				_set_dval_valiable(variable,_get_dval_cele(awk,tmp2));
+				break;
+			case RYU_SC_CALC_TYPE_STRVAL:
+				_set_str_value(variable,tmp2-&gt;val.sval);
+				break;
+			case RYU_SC_CALC_TYPE_VALIABLE:
+				_copy_valiable(variable,_get_valiable(awk,tmp2-&gt;val.sval));
+				break;
+			case RYU_SC_CALC_TYPE_ARRAY:
+				_copy_valiable(variable,_get_variable_from_array(awk,_get_valiable(awk,tmp2-&gt;val.sval),_get_sval_from_valiable(((_valiable *)tmp2-&gt;option.sele))));
+				break;
+			default:
+				_set_dval_valiable(variable,_get_dval_cele(awk,tmp2));
+			}
+			_disable_cele(current);
+			_disable_cele(tmp2);
+		}else if(current-&gt;type == RYU_SC_CALC_TYPE_STR &amp;&amp; current-&gt;val.sval[1] == '=' ){
+			tmp = _get_left(current);
+			tmp2 = _get_right(current);
+			if(tmp == NULL || tmp2 == NULL){
+				fprintf(stderr,"Invalid calculation\n");
+				_free_cele_chain(head);
+				return NAN;
+			}
+			if(!(tmp-&gt;type == RYU_SC_CALC_TYPE_VALIABLE || tmp-&gt;type == RYU_SC_CALC_TYPE_ARRAY)){
+				fprintf(stderr,"Invalid substitution to %s\n",current-&gt;val.sval);
+				_free_cele_chain(head);
+				return NAN;
+			}
+			if(tmp-&gt;type == RYU_SC_CALC_TYPE_VALIABLE){
+				variable = _get_valiable(awk,tmp-&gt;val.sval);
+			}else{
+				variable = _get_variable_from_array(awk,_get_valiable(awk,tmp-&gt;val.sval),_get_sval_from_valiable(((_valiable *)tmp-&gt;option.sele)));
+			}
+			if(variable == NULL){
+				fprintf(stderr,"Invalid variable\n");
+				_free_cele_chain(head);
+				return NAN;
+			}
+			switch(current-&gt;val.sval[0]){
+				case '+':
+					_set_dval_valiable(variable,_get_dval_from_valiable(variable) + _get_dval_cele(awk,tmp2));
+					break;
+				case '-':
+					_set_dval_valiable(variable,_get_dval_from_valiable(variable) - _get_dval_cele(awk,tmp2));
+					break;
+				case '*':
+					_set_dval_valiable(variable,_get_dval_from_valiable(variable) * _get_dval_cele(awk,tmp2));
+					break;
+				case '/':
+					_set_dval_valiable(variable,_get_dval_from_valiable(variable) / _get_dval_cele(awk,tmp2));
+					break;
+				case '|':
+					_set_dval_valiable(variable,_get_intval_from_valiable(variable) | (int)_get_dval_cele(awk,tmp2));
+					break;
+				case '&amp;':
+					_set_dval_valiable(variable,_get_intval_from_valiable(variable) &amp; (int)_get_dval_cele(awk,tmp2));
+					break;
+			}
+			_disable_cele(current);
+			_disable_cele(tmp2);
+		}
+		_check_and_or(current);
+		current = current-&gt;next;
+	}
+	current = head;
+	while(current!=NULL){
+		if(current-&gt;type == RYU_SC_CALC_TYPE_REGEX){
+			if(_check_regex(_get_sval_from_valiable(_get_valiable(awk,"$0")),current-&gt;val.sval)){
+				_set_dval_cele(current,RYU_SC_CALC_TYPE_DVAL,1.0f);
+			}else{
+				_set_dval_cele(current,RYU_SC_CALC_TYPE_DVAL,0.0f);
+			}
+		}
+		current = current-&gt;next;
+	}
+	current = head;
+	while(current!=NULL){
+		if(current-&gt;type == RYU_SC_CALC_TYPE_CHAR &amp;&amp; current-&gt;val.cval == '!'){
+			tmp = _get_left(current);
+			if(tmp==NULL){
+				fprintf(stderr,"Invalid use of \'!\'\n");
+				return NAN;
+			}
+			dval = _get_dval_cele(awk,tmp);
+			_disable_cele(tmp);
+			if(dval == 0){
+				_set_dval_cele(current,RYU_SC_CALC_TYPE_DVAL,1.0f);
+			}else{
+				_set_dval_cele(current,RYU_SC_CALC_TYPE_DVAL,0.0f);
+			}
+		}
+		current = current-&gt;next;
+	}
+	if(head-&gt;type != 0){
+		dval = _get_dval_cele(awk,head);
+		_free_cele_chain(head);
+		return dval;
+	}
+	dval = _get_dval_cele(awk,_get_right(head));
+	_free_cele_chain(head);
+	return dval;
+
+	falseend:
+	_free_cele_chain(head);
+	 return 0.0f;
+	trueend:
+	_free_cele_chain(head);
+	return 1.0f;
+}
+int _do_calc(_awk *awk,_element *executing){
+	_cele *head = _parse_cele(awk,executing);
+	double dval;
+	if(head == NULL)
+		return 1;
+	executing-&gt;type = RYU_SC_TYPE_PARSED_CALC;
+	executing-&gt;todo = (s_ele *)head;
+	dval = _do_parsed_calc(awk,head);
+	awk-&gt;result = 0.0f;
+	if(dval == NAN)
+		return 1;
+	awk-&gt;result = dval;
+	return 0;
+}
+int _do_print(_awk *awk,_element *executing){
+	if(awk==NULL || executing-&gt;type != RYU_SC_TYPE_PRINT)
+		return 1;
+	s_ele *head = executing-&gt;todo;
+	pse_stream *out = get_write_Stream(awk-&gt;order,1);
+	_valiable *vari;
+	char buff[128];
+	char *str;
+	char c;
+	if(out==NULL){
+		fprintf(stderr,"[Ryu awk]Output stream not given\n");
+		return 1;
+	}
+	while(head!=NULL){
+		if(_GET_CHAR_FROM_SELE(head) == '\"'){
+			head = head-&gt;next;
+			if(_GET_STR_FROM_SELE(head)!= NULL)
+				write_str_to_stream(out,_GET_STR_FROM_SELE(head));
+			else{
+				fprintf(stderr,"[Ryu awk]Invalid print\n");
+				return 1;
+			}
+		}else if(head-&gt;is_pval){
+
+			if( head-&gt;next != NULL &amp;&amp; _GET_CHAR_FROM_SELE(head-&gt;next) == '['){
+				/*array*/
+				str = NULL;
+				c = 0;
+				if(head-&gt;is_pval){
+					str = head-&gt;value.pval;
+				}else{
+					c = head-&gt;value.cval;
+				}
+				head = head-&gt;next-&gt;next;
+				if( _GET_CHAR_FROM_SELE(head) == '\"'){
+					head = head-&gt;next;
+					vari = _get_variable_from_array(awk,_get_valiable(awk,str),_GET_STR_FROM_SELE(head));
+				}else if(isdigit(_GET_STR_FROM_SELE(head)[0])){
+					vari = _get_variable_from_array(awk,_get_valiable(awk,str),_GET_STR_FROM_SELE(head));
+				}else{
+					vari = _get_variable_from_array(awk,_get_valiable(awk,str),_get_sval_from_valiable(_get_valiable(awk,_GET_STR_FROM_SELE(head))));
+				}
+				head = head-&gt;next;
+			}else{
+				vari = _get_valiable(awk,head-&gt;value.pval);
+			}
+			if(vari == NULL){
+				fprintf(stderr,"Variable %s not found\n",str);
+			}
+			write_str_to_stream(out,_get_sval_from_valiable(vari));
+		}else if(_GET_CHAR_FROM_SELE(head)=='$'){
+			head = head-&gt;next;
+			if(isdigit(_GET_STR_FROM_SELE(head)[0])){
+				sprintf(buff,"$%d",atoi(_GET_STR_FROM_SELE(head)));
+				vari = _get_valiable(awk,buff);
+			}else{
+				sprintf(buff,"$%d",_get_intval_from_valiable(_get_valiable(awk,_GET_STR_FROM_SELE(head))));
+				vari = _get_valiable(awk,buff);
+			}
+			write_str_to_stream(out,_get_sval_from_valiable(vari));
+		}else{
+			fprintf(stderr,"Unknown value:%s ,%c\n",_GET_STR_FROM_SELE(head),_GET_CHAR_FROM_SELE(head));
+		}
+		head = head-&gt;next;
+	}
+	write_str_to_stream(out,_get_sval_from_valiable(_get_valiable(awk,"ORS")));
+	return 0;
+}
+int _execute_root_block(_awk *awk,_element *ele){
+	_element *executing = _get_branch_at(ele,0);
+	while(executing !=NULL){
+		switch (executing-&gt;type) {
+			case RYU_SC_TYPE_BLOCK:
+				if(!_check_flag(awk,RYU_SC_FLAG_BEGIN) &amp;&amp; !_check_flag(awk,RYU_SC_FLAG_END))
+					if(_ryuexecute(awk,_get_branch_at(executing,0)))
+						return 1;
+				break;
+			case RYU_SC_TYPE_CALC:
+				if(!_check_flag(awk,RYU_SC_FLAG_BEGIN) &amp;&amp; !_check_flag(awk,RYU_SC_FLAG_END)){
+					if(_do_calc(awk,executing)){
+						return 1;
+					}
+					if(awk-&gt;result != 0.0f &amp;&amp; _get_branch_at(executing,0)!= NULL)
+						if(_ryuexecute(awk,_get_branch_at(executing,0)))
+							return 1;
+				}
+				break;
+			case RYU_SC_TYPE_PARSED_CALC:
+				if(!_check_flag(awk,RYU_SC_FLAG_BEGIN) &amp;&amp; !_check_flag(awk,RYU_SC_FLAG_END)){
+					awk-&gt;result = _do_parsed_calc(awk,(_cele *)executing-&gt;todo);
+					if(awk-&gt;result == NAN)
+						return 1;
+					if(awk-&gt;result != 0.0f &amp;&amp; _get_branch_at(executing,0)!= NULL)
+						if(_ryuexecute(awk,_get_branch_at(executing,0)))
+							return 1;
+				}
+				break;
+			case RYU_SC_TYPE_BEGIN:
+				if(_check_flag(awk,RYU_SC_FLAG_BEGIN) &amp;&amp; !_check_flag(awk,RYU_SC_FLAG_BEGIN_END)){
+					if(_ryuexecute(awk,executing))
+						return 1;
+					awk-&gt;flags |= RYU_SC_FLAG_BEGIN_END;
+				}
+				break;
+			case RYU_SC_TYPE_END:
+				if(_check_flag(awk,RYU_SC_FLAG_END) &amp;&amp; !_check_flag(awk,RYU_SC_FLAG_END_END)){
+					if(_ryuexecute(awk,_get_branch_at(executing,0)))
+						return 1;
+					awk-&gt;flags |= RYU_SC_FLAG_END_END;
+				}
+				break;
+			default:
+				fprintf(stderr,"Invalid element on root block\n");
+				return 1;
+				break;
+		}
+		awk-&gt;flags &amp;= ~RYU_SC_FLAG_RETURN;
+		awk-&gt;flags &amp;= ~RYU_SC_FLAG_BREAK;
+		executing = executing-&gt;next;
+	}
+	return 0;
+}
+#define RETURN_AND_BREAK(awk) do{ \
+	if(awk-&gt;flags &amp; RYU_SC_FLAG_RETURN){ \
+		return 0;\
+	}else if(awk-&gt;flags &amp; RYU_SC_FLAG_BREAK){ \
+		return 0; \
+	}\
+}while(0)
+
+int _ryuexecute(_awk *awk,_element *executing){
+	if(executing == NULL || awk == NULL)
+		return 0;
+	switch(executing-&gt;type){
+		case RYU_SC_TYPE_BEGIN:
+			if(_do_begin(awk,executing))
+				goto err;
+			RETURN_AND_BREAK(awk);
+			break;
+		case RYU_SC_TYPE_CALC:
+			if(_do_calc(awk,executing)){
+				goto err;
+			}
+			RETURN_AND_BREAK(awk);
+			break;
+		case RYU_SC_TYPE_PARSED_CALC:
+			awk-&gt;result = _do_parsed_calc(awk,(_cele *)executing-&gt;todo);
+			if(awk-&gt;result == NAN)
+				goto err;
+			RETURN_AND_BREAK(awk);
+			break;
+		case RYU_SC_TYPE_BLOCK:
+			if(_ryuexecute(awk,_get_branch_at(executing,0)))
+				goto err;
+			RETURN_AND_BREAK(awk);
+			break;
+		case RYU_SC_TYPE_FOR:
+			if(_ryuexecute(awk,_get_branch_at(executing,0)))
+				goto err;
+			RETURN_AND_BREAK(awk);
+			if(_ryuexecute(awk,_get_branch_at(executing,1)))
+				goto err;
+			RETURN_AND_BREAK(awk);
+			while(awk-&gt;result != 0){
+				if(_ryuexecute(awk,_get_branch_at(executing,3))) /*Execute inside of for*/
+					goto err;
+				if(awk-&gt;flags &amp; RYU_SC_FLAG_BREAK){
+					awk-&gt;flags &amp;= ~RYU_SC_FLAG_BREAK;
+					break;
+				}else{
+					RETURN_AND_BREAK(awk);
+				}
+				if(_ryuexecute(awk,_get_branch_at(executing,2)))
+					goto err;
+				RETURN_AND_BREAK(awk);
+				if(_ryuexecute(awk,_get_branch_at(executing,1)))
+					goto err;
+				RETURN_AND_BREAK(awk);
+			}
+			break;
+		case RYU_SC_TYPE_IF:
+			if(_ryuexecute(awk,_get_branch_at(executing,0)))
+				goto err;
+			RETURN_AND_BREAK(awk);
+			if(awk-&gt;result != 0){
+				if(_ryuexecute(awk,_get_branch_at(executing,1)))
+					goto err;
+				RETURN_AND_BREAK(awk);
+			}else if(_get_branch_at(executing,2)!= NULL){
+				if(_ryuexecute(awk,_get_branch_at(executing,2)))
+					goto err;
+				RETURN_AND_BREAK(awk);
+			}
+			break;
+		case RYU_SC_TYPE_ELIF:
+			if(_ryuexecute(awk,_get_branch_at(executing,0)))
+				goto err;
+			RETURN_AND_BREAK(awk);
+			if(awk-&gt;result != 0){
+				if(_ryuexecute(awk,_get_branch_at(executing,1)))
+					goto err;
+				RETURN_AND_BREAK(awk);
+			}else if(_get_branch_at(executing,2)!= NULL){
+				if(_ryuexecute(awk,_get_branch_at(executing,2)))
+					goto err;
+				RETURN_AND_BREAK(awk);
+			}
+			break;
+		case RYU_SC_TYPE_ELSE:
+			if(_ryuexecute(awk,_get_branch_at(executing,0)))
+				goto err;
+			RETURN_AND_BREAK(awk);
+			break;
+		case RYU_SC_TYPE_NON:
+			break;
+		case RYU_SC_TYPE_EOF:
+			return 0;
+		case RYU_SC_TYPE_WHILE:
+			if(_ryuexecute(awk,_get_branch_at(executing,0)))
+				goto err;;
+			RETURN_AND_BREAK(awk);
+			while(awk-&gt;result){
+				if(_ryuexecute(awk,_get_branch_at(executing,1)))
+					goto err;
+				if(awk-&gt;flags &amp; RYU_SC_FLAG_BREAK){
+					awk-&gt;flags &amp;= ~RYU_SC_FLAG_BREAK;
+					break;
+				}else{
+					RETURN_AND_BREAK(awk);
+				}
+				if(_ryuexecute(awk,_get_branch_at(executing,0)))
+					goto err;
+				RETURN_AND_BREAK(awk);
+			}
+			break;
+		case RYU_SC_TYPE_PRINT:
+			_do_print(awk,executing);
+			RETURN_AND_BREAK(awk);
+			break;
+		case RYU_SC_TYPE_ROOT_BLOCK:
+			if(_execute_root_block(awk,executing)){
+				goto err;
+			}
+			RETURN_AND_BREAK(awk);
+			break;
+		case RYU_SC_TYPE_RETURN:
+			if(_ryuexecute(awk,_get_branch_at(executing,0)))
+				goto err;
+			awk-&gt;flags |= RYU_SC_FLAG_RETURN;
+			return 0;
+		case RYU_SC_TYPE_BREAK:
+			awk-&gt;flags |= RYU_SC_FLAG_BREAK;
+			return 0;
+	}
+	if(executing-&gt;next != NULL){
+		if(_ryuexecute(awk,executing-&gt;next))
+			goto err;
+	}
+	return 0;
+	err:
+		RYU_SC_SHOW_ELEMENT(executing);
+		return 1;
+}
+
+void _init_valiables(_awk *awk){
+	_set_valiable(awk,"FS"," \t");
+	_set_valiable(awk,"RS","\n");
+	_set_valiable(awk,"OFS"," ");
+	_set_valiable(awk,"ORS","\n");
+	_set_valiable(awk,"NR","0");
+	_set_valiable(awk,"NF","0");
+	_set_valiable(awk,"OFMT","%.6g");
+}
+_awk * _init_awk(struct order *order){
+    _awk *val = (_awk *)ryucalloc(order,1,sizeof(_awk));
+    if(val == NULL){
+        return NULL;
+    }
+    val-&gt;order = order;
+    val-&gt;rget_stack_i = -1;
+    val-&gt;reading_i = 1;
+    val-&gt;stack_index = -1;
+    _init_valiables(val);
+    return val;
+}
+int _rgetc(_awk *awk,pse_stream *stream){
+	int c;
+	if(awk-&gt;rget_stack_i &gt;= 0)
+		c = awk-&gt;rget_stack[(awk-&gt;rget_stack_i)--];
+	else
+		c = read_pse_stream(stream);
+	if(c == '\n')
+		awk-&gt;current_line_num++;
+	return c;
+}
+void _rungetc(_awk *awk,pse_stream *stream,char c){
+	if(c == '\n')
+		awk-&gt;current_line_num--;
+	awk-&gt;rget_stack[++(awk-&gt;rget_stack_i)] = c;
+}
+
+void _set_char(s_ele *ele,char c){
+	ele-&gt;value.cval = c;
+}
+void _set_str(s_ele *ele,char *str){
+	ele-&gt;value.pval = str;
+	ele-&gt;is_pval = 1;
+}
+s_ele * _append_s_ele(_awk *awk,s_ele *ele){
+    s_ele *val = (s_ele *)ryucalloc(awk-&gt;order,1,sizeof(s_ele));
+    if(val == NULL){
+        rawkerr(awk,"Allocation failed");
+        return NULL;
+    }
+    val-&gt;linenum = awk-&gt;current_line_num;
+    if(ele == NULL){
+        awk-&gt;s_ele_head = val;
+        return val;
+    }
+    while(ele-&gt;next != NULL)
+        ele = ele-&gt;next;
+    ele-&gt;next = val;
+    val-&gt;last = ele;
+    return val;
+}
+int _parse_str(_awk *awk,pse_stream *stream){
+    int c,i;
+    s_ele *current = NULL;
+    char buff[1024];
+    int tmp;
+    if((current = _append_s_ele(awk,current))==NULL)
+        	return 1;
+    _set_str(current,ryustrdup(awk,"This will be ignored"));
+    /*
+    if((current = _append_s_ele(awk,current))==NULL)
+    	return 1;
+    _set_char(current,'{');
+    */
+    /*When continue*/
+	/*I made this label because I don't really know what happens when continue is called inside of switch*/
+    conti:
+    while((c=_rgetc(awk,stream))!=EOF){
+        if(c==' '||c=='\t')
+            goto conti;
+        switch(c){
+            case '(':
+            case ')':
+            case '&lt;':
+            case '&gt;':
+            case '=':
+            case '{':
+            case '}':
+            case '*':
+            case '+':
+            case '-':
+            case '|':
+            case '&amp;':
+            case '~':
+            case '[':
+            case ']':
+            case '$':
+            case '%':
+            case '\\':
+            case '#':
+            case '\n':
+            case '!':
+            case ';':
+			case ':':
+			case ',':
+                if((current = _append_s_ele(awk,current))==NULL)
+                    return 1;
+                _set_char(current,c);
+                goto conti;
+            break;
+            case '\"':
+            case '\'':
+                i = 0;
+                tmp = c;
+                if((current = _append_s_ele(awk,current))==NULL)
+                    return 1;
+                _set_char(current,'\"');
+                while((c=_rgetc(awk,stream))!=EOF){
+                    if(c==tmp &amp;&amp; buff[i-1] != '\\'){
+                        break;
+                    }
+                    buff[i++] = c;
+                }
+                if(c == EOF){
+                    rawkerr(awk,"Odd string is given");
+                    return 1;
+                }
+                buff[i] = 0;
+                if((current = _append_s_ele(awk,current))==NULL)
+                    return 1;
+                _set_str(current,ryustrdup(awk,buff));
+                goto conti;
+			case '/':
+				if(!current-&gt;is_pval &amp;&amp; current-&gt;value.cval != ')'){
+					/* '/' for regular expression */
+					i = 0;
+	                tmp = c;
+	                if((current = _append_s_ele(awk,current))==NULL)
+	                    return 1;
+	                _set_char(current,'r');
+	                if((current = _append_s_ele(awk,current))==NULL)
+	                	return 1;
+	                _set_char(current,'r');
+	                while((c=_rgetc(awk,stream))!=EOF){
+	                    if(c=='/'){
+	                        break;
+	                    }
+	                    buff[i++] = c;
+	                }
+	                if(c == EOF){
+	                    rawkerr(awk,"Odd string is given");
+	                    return 1;
+	                }
+	                buff[i] = 0;
+	                if((current = _append_s_ele(awk,current))==NULL)
+	                    return 1;
+	                _set_str(current,ryustrdup(awk,buff));
+	                goto conti;
+				}else{
+					if((current = _append_s_ele(awk,current))==NULL)
+	                    return 1;
+	                _set_char(current,c);
+	                goto conti;
+				}
+				goto conti;
+        }
+        if(isalpha(c)||c == '_'){
+            i = 0;
+            do{
+                buff[i++] = c;
+            }while(isalnum(c=_rgetc(awk,stream))||c == '_');
+            buff[i] = 0;
+            _rungetc(awk,stream,c);
+            if((current = _append_s_ele(awk,current))==NULL)
+                return 1;
+            _set_str(current,ryustrdup(awk,buff));
+        }else if(isdigit(c)){
+            i = 0;
+            do{
+                buff[i++] = c;
+            }while(isdigit(c=_rgetc(awk,stream))||c == '.' || c == 'f' );
+            buff[i] = 0;
+            _rungetc(awk,stream,c);
+            if((current = _append_s_ele(awk,current))==NULL)
+                return 1;
+            _set_str(current,ryustrdup(awk,buff));
+        }else{
+            fprintf(stderr, "[char:%c 0x:%x] Is unknown char\nLine num %d",c,c,awk-&gt;current_line_num);
+        }
+    }
+    return 0;
+}
+
+_valiable * _get_record(_awk *awk,int index){
+	_valiable *line = awk-&gt;line;
+	int i = 0;
+	while(i &lt; index){
+		if(line == NULL)
+			return _mk_valiable(awk,NULL);
+		line = line-&gt;right;
+		i++;
+	}
+	if(line == NULL){
+		return _mk_valiable(awk,NULL);
+	}
+	return line;
+}
+
+void _free_record(_awk *awk){
+	_valiable *line = awk-&gt;line;
+	_valiable *tmp;
+	while(line!=NULL){
+		tmp = line;
+		line = line-&gt;right;
+		if(tmp-&gt;type == RYU_SC_VALIBLE_STR){
+			free(tmp-&gt;value.pval);
+		}
+		free(tmp);
+	}
+	awk-&gt;line = NULL;
+}
+_valiable * _mk_variable_without_ryumalloc(char *str){
+	_valiable *val = malloc(sizeof(_valiable));
+	val-&gt;name = "";
+	val-&gt;type = RYU_SC_VALIBLE_STR;
+	val-&gt;value.pval = strdup(str);
+	val-&gt;left = NULL;
+	val-&gt;right = NULL;
+	return val;
+}
+char * _ryu_awk_read_line(_awk *awk,pse_stream *st){
+	char *RS = _get_sval_from_valiable(_get_valiable(awk,"RS"));
+	int c;
+	int i,size;
+	_valiable *vari;
+	size = 64;
+	i = 0;
+	char *buff = malloc(size);
+	while((c = read_pse_stream(st))!=EOF){
+		if(strchr(RS,c) != NULL){
+			break;
+		}
+		buff[i++] = c;
+		if(i-1&gt;=size){
+			buff = realloc(buff,size+=size);
+		}
+	}
+	if(i == 0){
+		free(buff);
+		return NULL;
+	}
+	buff[i] = 0;
+	vari = _get_valiable(awk,"OFMT");
+	_set_dval_valiable(vari,_get_intval_from_valiable(vari) + 1);
+	return buff;
+}
+void _set_record(_awk *awk){
+	char *str;
+	_valiable *line;
+	_valiable *filen;
+	char *column;
+	char *FS;
+	pse_stream *st;
+	char buff[16];
+	if(awk==NULL)
+		return;
+	_free_record(awk);
+	if(awk-&gt;reading_i &gt;= 8){
+		awk-&gt;flags |= RYU_SC_FLAG_END;
+		return;
+	}
+	st = get_read_stream(awk-&gt;order,awk-&gt;reading_i);
+	if(st == NULL || st == awk-&gt;program_st){
+		awk-&gt;flags |= RYU_SC_FLAG_END;
+		return;
+	}
+	FS = _get_sval_from_valiable(_get_valiable(awk,"FS"));
+	str = _ryu_awk_read_line(awk,st);
+	if(str == NULL){
+		awk-&gt;reading_i++;
+		_set_record(awk);
+		return;
+	}else{
+		filen = _get_valiable(awk,"FILENAME");
+		sprintf(buff,"RIS%d",awk-&gt;reading_i);
+		_set_str_value(filen,buff);
+	}
+	if(!Is_st_reading(st)){
+		awk-&gt;reading_i++;
+	}
+	awk-&gt;line = _mk_variable_without_ryumalloc(str);
+	line = awk-&gt;line;
+	column = strtok(str,FS);
+	if(column == NULL){
+		free(str);
+		return;
+	}
+	line-&gt;right = _mk_variable_without_ryumalloc(column);
+	line = line-&gt;right;
+	while((column = strtok(NULL,FS))!=NULL){
+		line-&gt;right = _mk_variable_without_ryumalloc(column);
+		line = line-&gt;right;
+	}
+	free(str);
+}
+char * ryustrdup(_awk *awk,const char *str){
+	if(str == NULL || awk == NULL)
+		return NULL;
+	char *ptr = ryumalloc(awk-&gt;order,strlen(str)+1);
+	/*fprintf(stderr,"\t%p was allocated\n",ptr);*/
+	if(ptr == NULL)
+		return NULL;
+	strcpy(ptr,str);
+	return ptr;
+}
+_valiable * _mk_valiable(_awk *awk,const char *str){
+	if(awk == NULL || str == NULL)
+		return NULL;
+	_valiable *val = ryumalloc(awk-&gt;order,sizeof(_valiable));
+	if(val == NULL){
+		fprintf(stderr,"Allocation failed\n");
+		return NULL;
+	}
+	val-&gt;name = ryustrdup(awk,str);
+	if(val-&gt;name == NULL){
+		fprintf(stderr,"Allocation failed\n");
+		return NULL;
+	}
+	val-&gt;left = NULL;
+	val-&gt;right = NULL;
+	val-&gt;value.pval = NULL;
+	val-&gt;awk = awk;
+	val-&gt;type = RYU_SC_VALIBLE_STR;
+	return val;
+}
+
+_valiable * _set_str_value(_valiable *val,const char *str){
+	if(val == NULL)
+		return NULL;
+	if(val-&gt;type == RYU_SC_VALIBLE_STR){
+		ryufree(((_awk *)val-&gt;awk)-&gt;order,val-&gt;value.pval);
+	}
+	val-&gt;type = RYU_SC_VALIBLE_STR;
+	if(str == NULL){
+		val-&gt;value.pval = NULL;
+	}else{
+		val-&gt;value.pval = ryustrdup((_awk *)val-&gt;awk,str);
+		if(val-&gt;value.pval == NULL)
+			fprintf(stderr,"Allocation failed\n");
+	}
+	return val;
+}
+
+_valiable * _set_valiable(_awk *awk,const char *name,const char *val){
+	_valiable *head = awk-&gt;valiables;
+	_valiable *retval;
+	int n;
+	if(head == NULL){
+		head = _mk_valiable(awk,name);
+		awk-&gt;valiables = head;
+		if(head == NULL)
+			return NULL;
+		retval = head;
+	}else{
+		while(1){
+			if((n=strcmp(head-&gt;name,name)) &lt; 0){
+				if(head-&gt;right != NULL){
+					head = head-&gt;right;
+				}else{
+					retval = _mk_valiable(awk,name);
+					if(retval == NULL)
+						return NULL;
+					head-&gt;right = retval;
+					break;
+				}
+			}else if(n &gt; 0){
+				if(head-&gt;left == NULL){
+					retval = _mk_valiable(awk,name);
+					if(retval == NULL)
+						return NULL;
+					head-&gt;left = retval;
+					break;
+				}else{
+					head = head-&gt;left;
+				}
+			}else{
+				retval = head;
+				break;
+			}
+		}
+	}
+	if(retval != NULL)
+		_set_str_value(retval,val);
+	return retval;
+}
+_valiable * _get_valiable(_awk *awk,const char *name){
+	if(name == NULL)
+		return NULL;
+	_valiable *head = awk-&gt;valiables;
+	struct _farg *farg;
+	_cele *cele;
+	int n;
+	if(awk-&gt;stack_index&gt;=0){
+		farg = awk-&gt;stack[awk-&gt;stack_index];
+		while(farg!=NULL){
+			if(!strcmp(farg-&gt;name,name)){
+				return farg-&gt;val;
+			}
+			farg = farg-&gt;next;
+		}
+	}
+	if(name[0] == '$'){
+		if(isdigit(name[1])){
+			head = _get_record(awk,atoi(&amp;name[1]));
+		}else{
+			head =  _get_record(awk,_get_intval_from_valiable(_get_valiable(awk,&amp;name[1])));
+		}
+		return head;
+	}
+	if(awk-&gt;stack_index &gt;=0 &amp;&amp; awk-&gt;stack[awk-&gt;stack_index] != NULL){
+		struct _farg *arg = awk-&gt;stack[awk-&gt;stack_index];
+		while(arg!=NULL){
+			if(!strcmp(arg-&gt;name,name)){
+				return arg-&gt;val;
+			}
+			arg = arg-&gt;next;
+		}
+	}
+	while(head != NULL){
+		if((n = strcmp(head-&gt;name,name)) &lt; 0){
+			head = head-&gt;right;
+		}else if(n &gt; 0){
+			head = head-&gt;left;
+		}else{
+			return head;
+		}
+	}
+	return _set_valiable(awk,name,NULL);
+}
+void _copy_valiable(_valiable *to,_valiable *from){
+	to-&gt;type = from-&gt;type;
+	if(to-&gt;type == RYU_SC_VALIBLE_DVAL){
+		to-&gt;value.dval = from-&gt;value.dval;
+	}else{
+		to-&gt;value.pval = from-&gt;value.pval;
+	}
+}
+_valiable * _set_valiable_to_array(_awk *awk,_valiable *vari,char *name){
+	_valiable *head = vari;
+	vari = (_valiable *)vari-&gt;value.pval;
+	if(vari == NULL){
+		vari = _mk_valiable(awk,name);
+		head-&gt;value.pval = (void *)vari;
+		return vari;
+	}
+	while(vari != NULL){
+		if(strcmp(vari-&gt;name,name) &lt; 0){
+			if(vari-&gt;right == NULL){
+				vari-&gt;right = _mk_valiable(awk,name);
+				return vari-&gt;right;
+			}else{
+				vari = vari-&gt;right;
+			}
+		}else if(strcmp(vari-&gt;name,name) &gt; 0) {
+			if(vari-&gt;left == NULL){
+				vari-&gt;left = _mk_valiable(awk,name);
+				return vari-&gt;left;
+			}else{
+				vari = vari-&gt;left;
+			}
+		}else{
+			return vari;
+		}
+	}
+	return NULL;
+}
+_valiable * _get_variable_from_array(_awk *awk,_valiable *vari,char *name){
+	int n;
+	_valiable *array = vari;
+	array-&gt;type = RYU_SC_VALINLE_ARRAY;
+	vari = (_valiable *)vari-&gt;value.pval;
+	if(vari == NULL){
+		return _set_valiable_to_array(awk,array,name);
+	}
+	while(vari!=NULL){
+		if((n = strcmp(vari-&gt;name,name)) &lt; 0){
+			vari = vari-&gt;right;
+		}else if(n &gt; 0){
+			vari = vari-&gt;left;
+		}else{
+			return vari;
+		}
+	}
+	return _set_valiable_to_array(awk,array,name);
+}
+double _get_dval_from_valiable(_valiable *val){
+	if(val == NULL)
+		return 0;
+	if(val-&gt;type == RYU_SC_VALIBLE_DVAL){
+		return val-&gt;value.dval;
+	}
+	if(val-&gt;value.pval == NULL)
+		return 0;
+	return atof(val-&gt;value.pval);
+}
+int _get_intval_from_valiable(_valiable *val){
+	if(val-&gt;type == RYU_SC_VALIBLE_STR){
+		if(val-&gt;value.pval == NULL){
+			return 0;
+		}else{
+			return atoi(val-&gt;value.pval);
+		}
+	}
+	return (int)val-&gt;value.dval;
+}
+char *_get_sval_from_valiable(_valiable *val){
+	if(val==NULL)
+		return NULL;
+	if(val-&gt;type == RYU_SC_VALIBLE_STR){
+		if(val-&gt;value.pval == NULL){
+			return "";
+		}else{
+			return val-&gt;value.pval;
+		}
+	}
+	double dval = val-&gt;value.dval;
+	char buff[256];
+	_valiable *ofmt = _get_valiable(val-&gt;awk,"OFMT");
+	if(ofmt-&gt;type!=RYU_SC_VALIBLE_STR){
+		_set_str_value(ofmt,"%.6g");
+	}
+	sprintf(buff,_get_sval_from_valiable(ofmt),dval);
+	if(_set_str_value(val,buff) == NULL)
+		return NULL;
+	return val-&gt;value.pval;
+}
+_valiable * _set_dval_valiable(_valiable *val , double dval){
+	if(val == NULL)
+		return NULL;
+	if(val-&gt;type == RYU_SC_VALIBLE_STR){
+		ryufree(((_awk *)val-&gt;awk)-&gt;order,val-&gt;value.pval);
+	}
+	val-&gt;type = RYU_SC_VALIBLE_DVAL;
+	val-&gt;value.dval = dval;
+	return val;
+}
+</Code>
+    <Description>RyuScript</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>stdlib</Familly>
+    <Includes num="0">ctype</Includes>
+    <Includes num="1">math.h</Includes>
+    <Includes num="2">string.h</Includes>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+</ryuLib>

@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>lsAbsolute</Name>
+    <NameInC>ls_absolute_ryu_entry</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>1</AcceptableIn>
+    <AcceptableOut>1</AcceptableOut>
+    <Code>#include &lt;dirent.h&gt;
+#include &lt;stdlib.h&gt;
+void ls_absolute_ryu_entry(struct order *order){
+    pse_stream *in = get_read_Stream(order,1);
+    pse_stream *out = get_write_Stream(order,1);
+    DIR *d;
+    struct dirent *dir;
+    char *folder;
+    char actualpath [PATH_MAX];
+    char *ptr = ryumalloc(order,PATH_MAX);
+    char *result;
+    int i = 0;
+    if(out==NULL){
+        return;
+    }
+    if(in==NULL){
+        folder = ".";
+        d = opendir(folder);
+    }else{
+        folder = read_line(order,in);
+		if(folder==NULL)
+			return;
+        d = opendir(folder);
+    }
+    if(d){
+        while((dir=readdir(d))!=NULL){
+            ptr[0] = '\0';
+                if(ptr==NULL) return;
+            strcpy(ptr,folder);
+            strcat(ptr,"/");
+            strcat(ptr,dir-&gt;d_name);
+            result = realpath(ptr, actualpath);
+            if(result!=NULL){
+                write_str_to_stream(out,actualpath);
+                write_pse_stream(out,'\n');
+            }
+        }
+		closedir(d);
+    }else{
+        fprintf(stderr, "Cannot open %s \n",folder==NULL ? "NULL" : folder );
+        return;
+    }
+}
+</Code>
+    <Description>Get path to directory from input stream.
+Write list of absolute paths to output stream one by a line.
+If no input stream is given it shows list of files that is on current directory.
+If input stream does not have correct path to directory it does nothing.</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>System</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+    <Includes num="5"/>
+    <Includes num="6"/>
+    <Includes num="7"/>
+    <Includes num="8"/>
+    <Includes num="9"/>
+    <Includes num="10"/>
+  </FilterInfo>
+</ryuLib>

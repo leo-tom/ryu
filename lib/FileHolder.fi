@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>FileHolder</Name>
+    <NameInC>fileHolder_ryu_entry</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void fileHolder_ryu_entry(struct order *order){
+    pse_stream *in,*out;
+    char *buff;
+    struct stat fstat;
+    int i;
+    for(i=1;i&lt;=8;i++){
+        in = get_read_stream(order,i);
+        out = get_write_stream(order,i);
+        if(in==NULL||out==NULL){
+            return;
+        }
+        while((buff = read_line(order,in))!=NULL){
+            if(stat(buff,&amp;fstat)){
+                write_int(out,-1);
+            }else{
+                write_int(out,fstat.st_uid);
+            }
+        }
+    }
+}
+</Code>
+    <Description>Get name of file. Output integer which represent holder of its file.</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>System</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+    <Includes num="5"/>
+    <Includes num="6"/>
+    <Includes num="7"/>
+    <Includes num="8"/>
+    <Includes num="9"/>
+    <Includes num="10"/>
+    <Includes num="11"/>
+  </FilterInfo>
+</ryuLib>

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>FilePermissionParser</Name>
+    <NameInC>filePermissionParser_ryu_entry</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>8</AcceptableOut>
+    <Code>void filePermissionParser_ryu_entry(struct order *order){
+    pse_stream *in,*out;
+    int i,result,mode;
+    char const READ = 'r';
+    char const WRITE = 'w';
+    char const EXECUTE = 'x';
+    char *buff = ryumalloc(order,64);
+    for(i=1;i&lt;=8;i++){
+        in = get_read_stream(order,i);
+        out = get_write_stream(order,i);
+        if(in==NULL||out==NULL){
+            return;
+        }
+        while(Is_st_reading(in)){
+            mode = read_int(in);
+            strcpy(buff,"---------");
+            if(mode==0){
+                write_str_to_stream(out,buff);
+                write_pse_stream(out,'\n');
+            }
+            if(mode &amp; S_IRUSR){
+                buff[0] = READ;
+            }
+            if(mode &amp; S_IWUSR){
+                buff[1] = WRITE;
+            }
+            if(mode &amp; S_IXUSR){
+                buff[2] = EXECUTE;
+            }
+            if(mode &amp; S_IRGRP){
+                buff[3] = READ;
+            }
+            if(mode &amp; S_IWGRP){
+                buff[4] = WRITE;
+            }
+            if(mode &amp; S_IXGRP){
+                buff[5] = EXECUTE;
+            }
+            if(mode &amp; S_IROTH){
+                buff[6] = READ;
+            }
+            if(mode &amp; S_IWOTH){
+                buff[7] = WRITE;
+            }
+            if(mode &amp; S_IXOTH){
+                buff[8] = EXECUTE;
+            }
+            write_str_to_stream(out,buff);
+            write_pse_stream(out,'\n');
+        }
+    }
+}
+</Code>
+    <Description>Get integer which represent file permission. Output it as string representing file permission.</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>System</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+    <Includes num="5"/>
+    <Includes num="6"/>
+    <Includes num="7"/>
+    <Includes num="8"/>
+    <Includes num="9"/>
+    <Includes num="10"/>
+    <Includes num="11"/>
+  </FilterInfo>
+</ryuLib>

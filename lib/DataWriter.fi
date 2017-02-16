@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?><ryuLib>
+  <FilterInfo>
+    <Name>DataWriter</Name>
+    <NameInC>DataWriter_Entry</NameInC>
+    <Version>0.1</Version>
+    <AcceptableIn>8</AcceptableIn>
+    <AcceptableOut>0</AcceptableOut>
+    <Code>void DataWriter_Entry(struct order *order){
+    int i = 1;
+    struct order *Sorder = &amp;(((ryu_info *)order-&gt;info)-&gt;order);
+    for(;i&lt;=8;i++){
+        pse_stream *in = get_read_Stream(order,i);
+        pse_stream *out = get_read_Stream(Sorder,i);/*Because you have to write to output stream*/
+        if(in==NULL||out==NULL){
+            break;
+        }else{
+            int c;
+            while((c=read_pse_stream(in))!=EOF){
+                write_pse_stream(out,c);
+            }
+            pse_stream_end_write(out);
+        }
+		GC_pse_stream(out);
+    }
+}
+
+</Code>
+    <Description>Writes data to out side of ryu system.
+</Description>
+    <url>http://leotom.890m.com/</url>
+    <Familly>System</Familly>
+    <Includes num="0"/>
+    <Includes num="1"/>
+    <Includes num="2"/>
+    <Includes num="3"/>
+    <Includes num="4"/>
+  </FilterInfo>
+</ryuLib>
